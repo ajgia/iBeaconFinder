@@ -9,15 +9,15 @@ project(iBeaconServer
         LANGUAGES C)
 
 set(HEADER_LIST
-        "${template_SOURCE_DIR}/include/common.h"
+        "${iBeaconServer_SOURCE_DIR}/include/common.h"
         )
 
 set(COMMON_SOURCE_LIST
-        "${template_SOURCE_DIR}/src/common.c"
+        "${iBeaconServer_SOURCE_DIR}/src/common.c"
         )
 
 set(MAIN_SOURCE
-        "${template_SOURCE_DIR}/src/main.c"
+        "${iBeaconServer_SOURCE_DIR}/src/main.c"
         )
 
 ### Require out-of-source builds

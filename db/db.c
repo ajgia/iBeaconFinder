@@ -1,7 +1,10 @@
-#include "ndbm.c"
 // generic db functions
+#include <dc_posix/dc_fcntl.h>
+#include <dc_posix/dc_ndbm.h>
+#include <dc_posix/dc_posix_env.h>
 #include <sqlite3.h>
-#include <stdlib.h>
+
+#include "ndbm.c"
 typedef struct
 {
     int type;
@@ -13,16 +16,15 @@ typedef struct
     DBM *db;
 } db_nmdb;
 void db_store(const struct dc_error *err, const struct dc_posix_env *env,
-              void *db, const char *key, const char *val, database *db_info);
+              const char *key, const char *val, database *db_info);
 
 void db_store(const struct dc_error *err, const struct dc_posix_env *env,
-              void *db, const char *key, const char *val, database *db_info)
+              const char *key, const char *val, database *db_info)
 {
-    ndbm_ibeacons_store(err, env, db, key, val);
+    ndbm_ibeacons_store(err, env, key, val, db_info);
     // sqlite3_exec()
 };
-void foo(database *data);
-void foo(database *data) {}
+
 // db_fetch() { ndbm_ibeacons_fetch(); }
 // db_open() { ndbm_ibeacons_open(); };
 // db_close() { ndbm_ibeacons_close(); };
@@ -30,7 +32,9 @@ void foo(database *data) {}
 int main()
 {
     db_nmdb *d;
+    // cast to base type
     database *data = (database *)d;
-    foo((database *)d);
+    // foo((database *)d);
+    // cast to derived type
     db_nmdb *b = (db_nmdb *)data;
 }

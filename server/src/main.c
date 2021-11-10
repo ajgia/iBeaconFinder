@@ -141,6 +141,7 @@ int main(void)
                                 {
                                     // do something
                                     // possibly start an fsm here
+                                    // need to process message byte  per byte, avoid buffer scheme
                                     // server must respond to valid http requests (GET and PUT)
 
                                     receive_data(&env, &err, client_socket_fd, 1024);

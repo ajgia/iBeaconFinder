@@ -10,7 +10,7 @@ IF (LINT)
 ENDIF ()
 
 # Make an executable
-add_executable(iBeaconServer ${COMMON_SOURCE_LIST}  ${MAIN_SOURCE} ${HEADER_LIST})
+add_executable(iBeaconServer ${COMMON_SOURCE_LIST} ${MAIN_SOURCE} ${HEADER_LIST})
 
 # We need this directory, and users of our library will need it too
 target_include_directories(iBeaconServer PRIVATE ../include)
@@ -58,7 +58,7 @@ source_group(
 add_custom_target(
         format
         COMMAND clang-format
-        -i
+        -i 
         ${HEADER_LIST}
         ${COMMON_SOURCE_LIST}
         ${MAIN_SOURCE}

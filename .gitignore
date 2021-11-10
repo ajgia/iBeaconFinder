@@ -7,3 +7,5 @@
 #database stuff
 *.dir
 *.pag
+
+testClient/tester

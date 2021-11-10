@@ -72,6 +72,11 @@ int main(void)
             socklen_t sockaddr_size;
 
             sockaddr = result->ai_addr;
+
+            // find processes' PIDs on this port:
+            // sudo lsof -i:7123
+            // kill a process:
+            // kill -9 PID
             port = 7123;
             converted_port = htons(port);
 
@@ -156,6 +161,9 @@ int main(void)
                                     
                                     receive_data(&env, &err, client_socket_fd, 1024);
 
+                                    char response[5000] = {0};
+                                    
+
                                     dc_write(&env, &err, client_socket_fd, hello, strlen(hello));
 
                                     dc_close(&env, &err, client_socket_fd);
@@ -183,7 +191,16 @@ int main(void)
     return EXIT_SUCCESS;
 }
 
-// Look at the code in the client, you could do the same thing
+
+
+/**
+ * @brief Reads from fd into buffer until no more bytes, and writes to STD_OUT as bytes are read.
+ * 
+ * @param env 
+ * @param err 
+ * @param fd 
+ * @param size 
+ */
 void receive_data(struct dc_posix_env *env, struct dc_error *err, int fd, size_t size)
 {
     // more efficient would be to allocate the buffer in the caller (main) so we don't have to keep

@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "db.c"
 #define DB_NAME "beacons"
 datum fetch(DBM *db, const char *maj, const char *min,
             const struct dc_error *err, const struct dc_posix_env *env);

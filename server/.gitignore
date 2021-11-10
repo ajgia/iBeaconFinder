@@ -650,3 +650,4 @@ FodyWeavers.xsd
 .vscode
 build
 cmake-build-debug
+.DS_Store

@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <string.h>
 
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env, const char *file_name,
@@ -104,6 +104,7 @@ int main(void)
 
             if(dc_error_has_no_error(&err))
             {
+                // bind address (port) to socket
                 dc_bind(&env, &err, server_socket_fd, sockaddr, sockaddr_size);
 
                 if(dc_error_has_no_error(&err))
@@ -111,6 +112,8 @@ int main(void)
                     int backlog;
 
                     backlog = 5;
+
+                    // listen tells socket it should be capable of accepting incoming connections
                     dc_listen(&env, &err, server_socket_fd, backlog);
 
                     if(dc_error_has_no_error(&err))
@@ -129,22 +132,32 @@ int main(void)
                             new_action.sa_flags = 0;
                             dc_sigaction(&env, &err, SIGINT, &new_action, NULL);
 
+                            // while server has no errors, we'll accept connections. each request is a new connection.
+                            // so in this loop is: accept, read, respond, close
+                            // possibly start an fsm here
                             while(!(exit_flag) && dc_error_has_no_error(&err))
                             {
                                 int client_socket_fd;
 
-                                // accept a new (client) connection on socket
+                                // accept a new (client) connection on socket. gets first in queue.
+                                // creates a new socket for the connection. old socket is just for accepting connections, NOT data.
                                 client_socket_fd = dc_accept(&env, &err, server_socket_fd, NULL, NULL);
 
-                                // socket is accepted
                                 if(dc_error_has_no_error(&err))
                                 {
-                                    // do something
-                                    // possibly start an fsm here
+
+                                    // do something. we can now process messages with read and write
+             
                                     // need to process message byte  per byte, avoid buffer scheme
                                     // server must respond to valid http requests (GET and PUT)
 
+                                    // http://localhost:7123/index.html
+                                    const char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
+                                    
                                     receive_data(&env, &err, client_socket_fd, 1024);
+
+                                    dc_write(&env, &err, client_socket_fd, hello, strlen(hello));
+
                                     dc_close(&env, &err, client_socket_fd);
                                 }
                                 else

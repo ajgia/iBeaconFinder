@@ -10,7 +10,7 @@ IF (LINT)
 ENDIF ()
 
 # Make an executable
-add_executable(iBeaconServer ${COMMON_SOURCE_LIST}  ${MAIN_SOURCE} ${HEADER_LIST})
+add_executable(iBeaconServer ${COMMON_SOURCE_LIST} ${MAIN_SOURCE} ${HEADER_LIST})
 
 # We need this directory, and users of our library will need it too
 target_include_directories(iBeaconServer PRIVATE ../include)
@@ -27,6 +27,7 @@ target_compile_options(iBeaconServer PRIVATE -Wpedantic -Wall -Wextra)
 target_compile_options(iBeaconServer PRIVATE -Wdouble-promotion -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wnull-dereference -Winit-self -Wmissing-include-dirs -Wswitch-default -Wswitch-enum -Wunused-local-typedefs -Wstrict-overflow=5 -Wmissing-noreturn -Walloca -Wfloat-equal -Wdeclaration-after-statement -Wshadow -Wpointer-arith -Wabsolute-value -Wundef -Wexpansion-to-defined -Wunused-macros -Wno-endif-labels -Wbad-function-cast -Wcast-qual -Wwrite-strings -Wconversion -Wdangling-else -Wdate-time -Wempty-body -Wsign-conversion -Wfloat-conversion -Waggregate-return -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Wmissing-declarations -Wpacked -Wredundant-decls -Wnested-externs -Winline -Winvalid-pch -Wlong-long -Wvariadic-macros -Wdisabled-optimization -Wstack-protector -Woverlength-strings)
 
 find_library(LIBM m REQUIRED)
+find_library(LIBCONFIG config REQUIRED)
 find_library(LIBSOCKET socket)
 find_library(LIBDC_ERROR dc_error REQUIRED)
 find_library(LIBDC_POSIX dc_posix REQUIRED)
@@ -34,6 +35,8 @@ find_library(LIBDC_UTIL dc_util REQUIRED)
 find_library(LIBDC_FSM dc_fsm REQUIRED)
 find_library(LIBDC_APPLICATION dc_application REQUIRED)
 find_library(LIBDC_NETWORK dc_network REQUIRED)
+
+target_link_libraries(iBeaconServer PRIVATE ${LIBM})
 target_link_libraries(iBeaconServer PRIVATE ${LIBM})
 target_link_libraries(iBeaconServer PRIVATE ${LIBDC_ERROR})
 target_link_libraries(iBeaconServer PRIVATE ${LIBDC_POSIX})
@@ -55,7 +58,7 @@ source_group(
 add_custom_target(
         format
         COMMAND clang-format
-        -i
+        -i 
         ${HEADER_LIST}
         ${COMMON_SOURCE_LIST}
         ${MAIN_SOURCE}

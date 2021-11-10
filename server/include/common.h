@@ -2,8 +2,6 @@
 #define TEMPLATE_COMMON_H
 
 
-#define DEFAULT_ECHO_PORT 2007
-
 /**
  * Displays string argument with new line
  *

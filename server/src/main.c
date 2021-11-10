@@ -61,6 +61,7 @@ int main(void)
     {
         int server_socket_fd;
 
+        // create socket
         server_socket_fd = dc_socket(&env, &err, result->ai_family, result->ai_socktype, result->ai_protocol);
 
         if(dc_error_has_no_error(&err))
@@ -74,6 +75,7 @@ int main(void)
             port = 7123;
             converted_port = htons(port);
 
+            // think this is ipv4 or ipv6 stuff
             if(sockaddr->sa_family == AF_INET)
             {
                 struct sockaddr_in *addr_in;
@@ -98,6 +100,7 @@ int main(void)
                     sockaddr_size = 0;
                 }
             }
+
 
             if(dc_error_has_no_error(&err))
             {
@@ -130,10 +133,16 @@ int main(void)
                             {
                                 int client_socket_fd;
 
+                                // accept a new (client) connection on socket
                                 client_socket_fd = dc_accept(&env, &err, server_socket_fd, NULL, NULL);
 
+                                // socket is accepted
                                 if(dc_error_has_no_error(&err))
                                 {
+                                    // do something
+                                    // possibly start an fsm here
+                                    // server must respond to valid http requests (GET and PUT)
+
                                     receive_data(&env, &err, client_socket_fd, 1024);
                                     dc_close(&env, &err, client_socket_fd);
                                 }

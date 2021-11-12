@@ -11,11 +11,14 @@ project(iBeaconServer
 set(HEADER_LIST
         "${iBeaconServer_SOURCE_DIR}/include/common.h"
         "${iBeaconServer_SOURCE_DIR}/include/dbstuff.h"
+        "${iBeaconServer_SOURCE_DIR}/include/http_.h"
         )
 
 set(COMMON_SOURCE_LIST
         "${iBeaconServer_SOURCE_DIR}/src/common.c"
         "${iBeaconServer_SOURCE_DIR}/src/db.c"
+        "${iBeaconServer_SOURCE_DIR}/src/http_request.c"
+        "${iBeaconServer_SOURCE_DIR}/src/http_response.c"
         )
 
 set(MAIN_SOURCE

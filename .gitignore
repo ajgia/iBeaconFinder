@@ -9,3 +9,4 @@
 *.pag
 
 testClient/tester
+.DS_Store

@@ -45,8 +45,8 @@ struct server
     int server_socket_fd;
     int client_socket_fd;
     // TODO: these structs should be valid
-    struct http_request req_line;
-    struct http_response res_line;
+    struct http_request req;
+    struct http_response res;
     // these may need to be defined size arrays for mallocing.
     char *request;
     char *response;
@@ -125,6 +125,7 @@ int main(void)
 
         struct server *server =
             (struct server *)dc_malloc(&env, &err, sizeof(struct server));
+
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              server, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
@@ -227,7 +228,6 @@ int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     }
 
     server->backlog = 5;
-
     // listen tells socket it should be capable of accepting incoming
     // connections
     dc_listen(env, err, server->server_socket_fd, server->backlog);

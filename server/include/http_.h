@@ -1,5 +1,5 @@
-#ifndef TEMPLATE_COMMON_H
-#define TEMPLATE_COMMON_H
+#ifndef TEMPLATE_HTTP__H
+#define TEMPLATE_HTTP__H
 typedef enum response_codes response_codes_t;
 typedef enum request_method request_method_t;
 enum request_method
@@ -82,7 +82,7 @@ enum response_codes
 
 struct request_line
 {
-    request_method_t req_method;
+    char *req_method;
     char *path;
     char *HTTP_VER;
 };
@@ -94,18 +94,22 @@ struct response_line
 };
 struct http_request
 {
-    struct request_line req_line;
+    struct request_line *req_line;
+    char *headers;
     char *message_body;
 };
 struct http_response
 {
-    struct response_line res_line;
+    struct response_line *res_line;
+    char *headers;
     char *message_body;
 };
 // request methods
 void process_request(char *request, struct http_request *req);
 // grab the first line
 // split into relevant fields
-void process_request_line(char *req_line, struct http_request *req);
+void process_request_line(char *str_in, struct request_line *req);
+//
+void process_header_line(char *header_line, struct http_request *req);
 
-#endif
+#endif  // TEMPLATE_HTTP__H

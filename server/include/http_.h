@@ -95,11 +95,13 @@ struct response_line
 struct http_request
 {
     struct request_line *req_line;
+    char *headers;
     char *message_body;
 };
 struct http_response
 {
     struct response_line *res_line;
+    char *headers;
     char *message_body;
 };
 // request methods

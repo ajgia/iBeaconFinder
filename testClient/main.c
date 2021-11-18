@@ -7,19 +7,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <ncurses.h>
 
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env, const char *file_name,
                            const char *function_name, size_t line_number);
 static void quit_handler(int sig_num);
 
+void build_request(char *option);
 
 static volatile sig_atomic_t exit_flag;
 
-
 int main(void)
 {
+    // init_curses();
     dc_error_reporter reporter;
     dc_posix_tracer tracer;
     struct dc_error err;
@@ -36,18 +37,18 @@ int main(void)
 
     host_name = "localhost";
     dc_memset(&env, &hints, 0, sizeof(hints));
-    hints.ai_family =  PF_INET; // PF_INET6;
+    hints.ai_family = PF_INET; // PF_INET6;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_CANONNAME;
     dc_getaddrinfo(&env, &err, host_name, NULL, &hints, &result);
 
-    if(dc_error_has_no_error(&err))
+    if (dc_error_has_no_error(&err))
     {
         int socket_fd;
 
         socket_fd = dc_socket(&env, &err, result->ai_family, result->ai_socktype, result->ai_protocol);
 
-        if(dc_error_has_no_error(&err))
+        if (dc_error_has_no_error(&err))
         {
             struct sockaddr *sockaddr;
             in_port_t port;
@@ -58,7 +59,7 @@ int main(void)
             port = 7123;
             converted_port = htons(port);
 
-            if(sockaddr->sa_family == AF_INET)
+            if (sockaddr->sa_family == AF_INET)
             {
                 struct sockaddr_in *addr_in;
 
@@ -68,7 +69,7 @@ int main(void)
             }
             else
             {
-                if(sockaddr->sa_family == AF_INET6)
+                if (sockaddr->sa_family == AF_INET6)
                 {
                     struct sockaddr_in6 *addr_in;
 
@@ -83,17 +84,17 @@ int main(void)
                 }
             }
 
-            if(dc_error_has_no_error(&err))
+            if (dc_error_has_no_error(&err))
             {
                 dc_connect(&env, &err, socket_fd, sockaddr, sockaddr_size);
-
-                if(dc_error_has_no_error(&err))
+                // init_curses();
+                if (dc_error_has_no_error(&err))
                 {
                     struct sigaction old_action;
 
                     dc_sigaction(&env, &err, SIGINT, NULL, &old_action);
 
-                    if(old_action.sa_handler != SIG_IGN)
+                    if (old_action.sa_handler != SIG_IGN)
                     {
                         struct sigaction new_action;
                         char data[1024];
@@ -103,28 +104,108 @@ int main(void)
                         sigemptyset(&new_action.sa_mask);
                         new_action.sa_flags = 0;
                         dc_sigaction(&env, &err, SIGINT, &new_action, NULL);
-                        strcpy(data, "GET / HTTP/1.0\r\n\r\n");
 
-                        if(dc_error_has_no_error(&err))
+                        if (dc_error_has_no_error(&err))
                         {
-                            dc_write(&env, &err, socket_fd, data, strlen(data));
+                            initscr();
+                            noecho();
+                            cbreak();
 
-                            while(dc_read(&env, &err, socket_fd, data, 1024) > 0 && dc_error_has_no_error(&err))
+                            int yMax, xMax;
+                            getmaxyx(stdscr, yMax, xMax);
+
+                            start_color();
+                            init_pair(1, COLOR_RED, COLOR_BLACK);
+                            init_pair(2, COLOR_CYAN, COLOR_BLACK);
+                            // Input window
+
+                            WINDOW *menu_window = newwin(4, xMax / 2, yMax - 8, xMax / 4);
+                            wattron(menu_window, COLOR_PAIR(1));
+                            box(menu_window, 0, 0);
+
+                            // num rows, num columns, begin y, begin x
+                            WINDOW *display_window = newwin(7, xMax / 2, yMax - 15, xMax / 4);
+                            wattron(display_window, COLOR_PAIR(2));
+                            box(display_window, 0, 0);
+                            int display_window_ymax, display_window_xmax;
+                            getmaxyx(display_window, display_window_ymax, display_window_xmax);
+
+                            wattroff(menu_window, COLOR_PAIR(1));
+                            wattroff(display_window, COLOR_PAIR(2));
+                            refresh();
+                            wrefresh(menu_window);
+                            wrefresh(display_window);
+                            keypad(menu_window, true);
+
+                            char *choices[2] = {"GET_ALL", "GET_BY_KEY"};
+                            int choice;
+                            int highlight = 0;
+                            strcpy(data, "GET / HTTP/1.0\r\n\r\n");
+
+                            while (1)
                             {
-                                printf("READ %s\n", data);
+                                for (size_t i = 0; i < 2; i++)
+                                {
+                                    if (i == highlight)
+                                    {
+                                        wattron(menu_window, A_REVERSE);
+                                    }
+                                    mvwprintw(menu_window, i + 1, 1, choices[i]);
+                                    wattroff(menu_window, A_REVERSE);
+                                }
+                                choice = wgetch(menu_window);
+                                switch (choice)
+                                {
+                                case KEY_UP:
+                                    highlight--;
+                                    if (highlight == -1)
+                                    {
+                                        highlight = 0;
+                                    }
+                                    break;
+                                case KEY_DOWN:
+                                    highlight++;
+                                    if (highlight == 2)
+                                    {
+                                        highlight = 1;
+                                    }
+                                    break;
+                                    // enter
+                                case 10:
+                                    mvwprintw(display_window, display_window_ymax / 2,
+                                              (display_window_xmax / 2) - 2, "                   ");
+                                    // send GET request
+                                    mvwprintw(display_window, display_window_ymax / 2,
+                                              (display_window_xmax / 2) - 2, "%s",
+                                              choices[highlight]);
+
+                                    wrefresh(display_window);
+                                    break;
+                                default:
+                                    break;
+                                }
+                                while (dc_read(&env, &err, socket_fd, data, 1024) > 0 && dc_error_has_no_error(&err))
+                                {
+
+                                    printf("READ %s\n", data);
+                                }
                             }
 
-                            if(err.type == DC_ERROR_ERRNO && err.errno_code == EINTR)
+                            // read response from server
+
+                            if (err.type == DC_ERROR_ERRNO && err.errno_code == EINTR)
                             {
                                 dc_error_reset(&err);
                             }
+                            getch();
+                            endwin();
                         }
                     }
                 }
             }
         }
 
-        if(dc_error_has_no_error(&err))
+        if (dc_error_has_no_error(&err))
         {
             dc_close(&env, &err, socket_fd);
         }
@@ -147,4 +228,9 @@ static void trace_reporter(const struct dc_posix_env *env, const char *file_name
                            const char *function_name, size_t line_number)
 {
     fprintf(stderr, "Entering: %s : %s @ %zu\n", file_name, function_name, line_number);
+}
+
+void build_request(char *option)
+{
+    dc_write(&env, &err, socket_fd, data, strlen(data));
 }

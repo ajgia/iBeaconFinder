@@ -3,13 +3,13 @@ OBJECTS = main.o
 BINARY = tester
 CFLAGS += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
 LDFLAGS += -ldc_error -ldc_posix
-
+LNFLAGS += -lncurses
 .PHONY: all
 all: $(BINARY)
 
 .PHONY: tester
 $(BINARY) : $(OBJECTS)
-	$(CC) -o $(BINARY) $(OBJECTS) $(LDFLAGS) $(LDLIBS)
+	$(CC) -o $(BINARY) $(OBJECTS) $(LDFLAGS) $(LDLIBS) $(LNFLAGS)
 
 $(OBJECTS):
 

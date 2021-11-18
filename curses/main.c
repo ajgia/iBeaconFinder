@@ -23,6 +23,8 @@ int main(int argc, char *argv[])
     WINDOW *display_window = newwin(7, xMax / 2, yMax - 15, xMax / 4);
     wattron(display_window, COLOR_PAIR(2));
     box(display_window, 0, 0);
+    int display_window_ymax, display_window_xmax;
+    getmaxyx(display_window, display_window_ymax, display_window_xmax);
 
     wattroff(menu_window, COLOR_PAIR(1));
     wattroff(display_window, COLOR_PAIR(2));
@@ -49,29 +51,37 @@ int main(int argc, char *argv[])
         choice = wgetch(menu_window);
         switch (choice)
         {
-            case KEY_UP:
-                highlight--;
-                if (highlight == -1)
-                {
-                    highlight = 0;
-                }
-                break;
-            case KEY_DOWN:
-                highlight++;
-                if (highlight == 2)
-                {
-                    highlight = 1;
-                }
-                break;
-                // enter
-            case 10:
-                mvwprintw(display_window, (display_window->_maxy / 2),
-                          (display_window->_maxx / 2) - 2, "%s",
-                          choices[highlight]);
-                wrefresh(display_window);
-                break;
-            default:
-                break;
+        case KEY_UP:
+            highlight--;
+            if (highlight == -1)
+            {
+                highlight = 0;
+            }
+            break;
+        case KEY_DOWN:
+            highlight++;
+            if (highlight == 2)
+            {
+                highlight = 1;
+            }
+            break;
+            // enter
+        case 10:
+            mvwprintw(display_window, display_window_ymax / 2,
+                      (display_window_xmax / 2) - 2, "                   ");
+
+            // SEND GET REQUEST
+            // WAIT RESPONSE
+            // PARSE RESPONSE
+            // PRINT RESPONSE
+            mvwprintw(display_window, display_window_ymax / 2,
+                      (display_window_xmax / 2) - 2, "%s",
+                      choices[highlight]);
+
+            wrefresh(display_window);
+            break;
+        default:
+            break;
         }
     }
 

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
 void db_store(const struct dc_posix_env *env, struct dc_error *err, const char *key_str, const char *val_str)
 {
     DBM *db;

@@ -331,7 +331,7 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         // some db_fetch call
         display("get all");
         db_fetch_all(env, err, val);
-        printf("%s", val);
+        printf("%s\n", val);
     }
     else {
         // get by id
@@ -344,22 +344,24 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         key = strtok(path, "?"); // returns piece before "?"
         key = strtok(NULL, " "); // NOW we have key. strtok is weird
 
-        printf("%s", key);
+        printf("%s\n", key);
 
         db_fetch(env, err, key, val);
-        printf("%s", val);
+        printf("%s\n", val);
         free(path);
     }
 
     char* response = (char*)calloc(1024, sizeof(char));
     
 
-    // TODO: strcture this in http
+    // TODO: structure this in proper http
     if (val) {
+        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
+        strcat(response, start);
+        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", response, strlen(val), val);
+        printf("%s", response);
         dc_write(env, err, server->client_socket_fd, val, strlen(val));
     }
-    
-
 
     // exit
     if (dc_error_has_no_error(err))

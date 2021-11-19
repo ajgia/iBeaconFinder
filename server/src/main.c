@@ -126,6 +126,8 @@ int main(void)
 
         struct server *server =
             (struct server *)dc_malloc(&env, &err, sizeof(struct server));
+        server->req.req_line = dc_malloc(&env, &err, sizeof(struct request_line));
+        server->res.res_line = dc_malloc(&env, &err, sizeof(struct response_line));
 
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              server, transitions);

@@ -333,7 +333,7 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         db_fetch_all(env, err, val);
         printf("%s\n", val);
     }
-    else {
+    else if (strstr(server->req.req_line->path, "?")) {
         // get by id
         // construct id
         display("get by id baby");
@@ -349,18 +349,20 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         db_fetch(env, err, key, val);
         printf("%s\n", val);
         free(path);
+    } else {
+        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+        dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
     }
 
     char* response = (char*)calloc(1024, sizeof(char));
     
-
+// char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 23\n\nPut your response here\n\r\n\r\n";
     // TODO: structure this in proper http
     if (val) {
         char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
-        strcat(response, start);
-        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", response, strlen(val), val);
+        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
         printf("%s", response);
-        dc_write(env, err, server->client_socket_fd, val, strlen(val));
+        dc_write(env, err, server->client_socket_fd, response, strlen(response));
     }
 
     // exit
@@ -408,6 +410,9 @@ int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     display("invalid baby");
     struct server *server = (struct server *)arg;
     int next_state;
+
+    char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+    dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 
     if (dc_error_has_no_error(err))
     {

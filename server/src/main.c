@@ -75,6 +75,9 @@ int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int post(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
 void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
@@ -87,7 +90,9 @@ enum application_states
     LISTEN,     // 3
     ACCEPT,     // 4
     PROCESS,    // 5
-    HANDLE      // 6
+    _GET,        // 6
+    _POST,       // 7
+    INVALID     // 8
 };
 
 static volatile sig_atomic_t exit_flag;
@@ -102,9 +107,17 @@ int main(void)
 
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
-        {DC_FSM_INIT, SETUP, setup}, {SETUP, LISTEN, _listen},
-        {LISTEN, ACCEPT, _accept},   {ACCEPT, PROCESS, process},
-        {PROCESS, HANDLE, handle},   {HANDLE, LISTEN, _listen}};
+        {DC_FSM_INIT, SETUP, setup},
+        {SETUP, LISTEN, _listen},
+        {LISTEN, ACCEPT, _accept},
+        {ACCEPT, PROCESS, process},
+        {PROCESS, _GET, get}, 
+        {PROCESS, _POST, post},
+        {PROCESS, INVALID, invalid},
+        {_GET, LISTEN, _listen},
+        {_POST, LISTEN, _listen},
+        {INVALID, LISTEN, _listen}
+        };
 
     reporter = error_reporter;
     tracer = trace_reporter;
@@ -286,19 +299,127 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     // read from client_socket_fd up to max size in request
     receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
 
-    // this will process the request and store in the server struct
-    // display("processing request");
-    dc_write(env, err, STDOUT_FILENO, request, strlen(request));
-    // printf("%d\n", strlen(request));
+    // dc_write(env, err, STDOUT_FILENO, request, strlen(request));
 
-    // dummy struct
-    // struct http_request *newreq = (struct http_request *) malloc(sizeof(struct http_request));
-    // process_request("GET /thing HTTP", newreq);
+    // this will process the request and store in the server struct
     process_request(request, &server->req);
 
     free(request);
     free(buffer);
-    next_state = HANDLE;
+
+    printf("%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
+    if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
+        next_state = _GET;
+    else if ( strcmp(server->req.req_line->req_method, "POST") == 0 )
+        next_state = _POST;
+    else
+        next_state = INVALID;
+
+    return next_state;
+}
+
+int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("get baby");
+    struct server *server = (struct server *) arg;
+    int next_state;
+    char *val = (char*)calloc(1024, sizeof(char));
+
+    // get from dbm, construct response, write response
+
+    if (strstr(server->req.req_line->path, "all")) {
+        // get all
+        // some db_fetch call
+        display("get all");
+        db_fetch_all(env, err, val);
+        printf("%s\n", val);
+    }
+    else if (strstr(server->req.req_line->path, "?")) {
+        // get by id
+        // construct id
+        display("get by id baby");
+        char *path = strdup(server->req.req_line->path);
+        char *key;
+        
+        // extract_key(path, key, "?")
+        key = strtok(path, "?"); // returns piece before "?"
+        key = strtok(NULL, " "); // NOW we have key. strtok is weird
+
+        printf("%s\n", key);
+
+        db_fetch(env, err, key, val);
+        printf("%s\n", val);
+        free(path);
+    } else {
+        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+        dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
+    }
+
+    char* response = (char*)calloc(1024, sizeof(char));
+    
+// char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 23\n\nPut your response here\n\r\n\r\n";
+    // TODO: structure this in proper http
+    if (val) {
+        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
+        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
+        printf("%s", response);
+        dc_write(env, err, server->client_socket_fd, response, strlen(response));
+    }
+
+    // exit
+    if (dc_error_has_no_error(err))
+    {
+        dc_close(env, err, server->client_socket_fd);
+    }
+
+    free(val);
+    free(response);
+    next_state = LISTEN;
+    return next_state;
+}
+
+int post(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("post baby");
+    struct server *server = (struct server *)arg;
+    int next_state;
+    char *path = strdup(server->req.req_line->path);
+    char *key;
+    char *val;
+        
+
+    // extract_key(path, key, "?")
+    key = strtok(path, "?"); // returns piece before "?"
+    key = strtok(NULL, ":"); // now we have key. strtok is weird
+    val = strtok(NULL, "");
+    printf("%s%s", key, val);
+
+    db_store(env, err, key, val);
+
+    if (dc_error_has_no_error(err))
+    {
+        dc_close(env, err, server->client_socket_fd);
+    }
+
+    // TODO: respond with success/failure
+
+    free(path);
+    next_state = LISTEN;
+    return next_state;
+}
+
+int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("invalid baby");
+    struct server *server = (struct server *)arg;
+    int next_state;
+
+    char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+    dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
+
+    if (dc_error_has_no_error(err))
+    {
+        dc_close(env, err, server->client_socket_fd);
+    }
+
+    next_state = LISTEN;
     return next_state;
 }
 
@@ -351,6 +472,25 @@ void receive_data(  const struct dc_posix_env *env, struct dc_error *err,
         }
         // TODO: handle overflow problem
     }
+
+}
+
+void extract_key(char *input, char *keydest, char *sep1, char *sep2) {
+    char *target = NULL;
+    char *start, *end;
+
+    if ( start = strstr( input, sep1 ) )
+    {
+        start += strlen( sep1 );
+        if ( end = strstr( start, sep2 ) )
+        {
+            keydest = ( char * )malloc( end - start + 1 );
+            memcpy( keydest, start, end - start );
+            keydest[end - start] = '\0';
+        }
+    }
+
+    if ( keydest ) printf( "%s\n", keydest );
 
 }
 

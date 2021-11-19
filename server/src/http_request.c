@@ -27,19 +27,10 @@ void process_request_line(char *req_line_str, struct request_line *req_line)
 
 void process_request(char *request, struct http_request *req)
 {
-    printf("inside process request\n");
-    // req line
     // TODO: remove magic numbers
     char request_line[101] = {0};
-    // // write(STDOUT_FILENO, request, reqSize);
-    // // TODO: fix error here. string will almost definitely not be null-terminated
-    // printf("attempting strchr/memchr");
     char *endOfFirstLine = strchr(request, '\r');
-    // // char *endOfFirstLine = memchr(request, '\r', reqSize);
-    // printf("attempting strncpy");
     strncpy(request_line, request, (endOfFirstLine - request));
-    // printf("processing request line");
-    // TODO: fix process_reqest_line seg fault
     process_request_line(request_line, req->req_line);
     // headers
 

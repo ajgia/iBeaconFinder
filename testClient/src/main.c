@@ -166,7 +166,7 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     initscr();
     noecho();
     cbreak();
-
+    curs_set(0);
     int yMax, xMax;
     getmaxyx(stdscr, yMax, xMax);
 
@@ -175,27 +175,32 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
     // Input window
 
-    WINDOW *menu_window = newwin(5, xMax / 2, yMax - 8, xMax / 4);
+    WINDOW *menu_window = newwin(4, xMax / 2, yMax - 8, xMax / 4);
     client->menu_window = menu_window;
-    wattron(menu_window, COLOR_PAIR(1));
-    box(menu_window, 0, 0);
-    WINDOW *menu_window_border = newwin(7, (xMax / 2) + 2, yMax - 8, xMax / 4);
-    wattron(menu_window_border, COLOR_PAIR(2));
+    int menu_maxx, menu_maxy;
+    getmaxyx(menu_window, menu_maxx, menu_maxy);
+
+    WINDOW *menu_window_border =
+        newwin(6, (xMax / 2) + 2, yMax - 9, (xMax / 4) - 1);
+    wattron(menu_window_border, COLOR_PAIR(1));
     box(menu_window_border, 0, 0);
 
     // num rows, num columns, begin y, begin x
-    WINDOW *display_window = newwin(7, xMax / 2, yMax - 15, xMax / 4);
+    WINDOW *display_window = newwin(7, xMax / 2, yMax - 20, xMax / 4);
     client->display_window = display_window;
-    wattron(display_window, COLOR_PAIR(2));
-    box(display_window, 0, 0);
+    WINDOW *display_window_border =
+        newwin(9, (xMax / 2) + 2, yMax - 21, (xMax / 4) - 1);
 
-    wattroff(menu_window, COLOR_PAIR(1));
-    wattroff(display_window, COLOR_PAIR(2));
+    wattron(display_window_border, COLOR_PAIR(2));
+    box(display_window_border, 0, 0);
+
+    wattroff(menu_window_border, COLOR_PAIR(1));
+    wattroff(display_window_border, COLOR_PAIR(2));
     refresh();
+    wrefresh(display_window_border);
     wrefresh(menu_window_border);
-    wrefresh(menu_window);
     wrefresh(display_window);
-
+    wrefresh(menu_window);
     keypad(menu_window, true);
 
     if (dc_error_has_no_error(err))
@@ -295,13 +300,14 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
 
     while (1)
     {
+        wclear(client->menu_window);
         for (size_t i = 0; i < 2; i++)
         {
             if (i == client->highlight)
             {
                 wattron(client->menu_window, A_REVERSE);
             }
-            mvwprintw(client->menu_window, i + 1, 1, choices[i]);
+            mvwprintw(client->menu_window, i, 0, choices[i]);
             wattroff(client->menu_window, A_REVERSE);
         }
         choice = wgetch(client->menu_window);
@@ -323,11 +329,8 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
                 break;
                 // enter
             case 10:
-                mvwprintw(client->display_window, display_window_ymax / 2,
-                          (display_window_xmax / 2) - 2, "                   ");
-                mvwprintw(client->display_window, display_window_ymax / 2,
-                          (display_window_xmax / 2) - 2, "%s",
-                          choices[client->highlight]);
+                wclear(client->display_window);
+
                 if (choices[client->highlight] == "GET_ALL")
                 {
                     next_state = GET_ALL;
@@ -371,10 +374,13 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     char input[1024];
     char data[1024];
-    mvwprintw(client->menu_window, 3, 1, "ENTER KEY: ");
+    mvwprintw(client->menu_window, 2, 0, "ENTER KEY: ");
+    curs_set(1);
+
     wrefresh(client->menu_window);
     echo();
     wgetstr(client->menu_window, input);
+    curs_set(0);
     noecho();
 
     sprintf(data, " GET /ibeacons/data?%s HTTP/1.0", input);
@@ -409,9 +415,12 @@ int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
     int display_window_ymax, display_window_xmax;
     char response[1024];
     getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
+    // if (recv)
+    // {
+    //     /* code */
+    // }
 
-    strcpy(response, "MAJ-MIN : ");
-    mvwprintw(client->display_window, 1, 1, "%s", response);
+    mvwprintw(client->display_window, 1, 1, "K:V", response);
 
     wrefresh(client->display_window);
     next_state = DISPLAY_RESPONSE;

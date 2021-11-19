@@ -133,6 +133,8 @@ int main(void)
                              server, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
 
+        free(server->req.req_line);
+        free(server->res.res_line);
         free(server);
     }
 

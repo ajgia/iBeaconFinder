@@ -84,10 +84,10 @@ void receive_data(  const struct dc_posix_env *env, struct dc_error *err,
 enum application_states
 {
     SETUP = DC_FSM_USER_START,  // 2
-    LISTEN,
-    ACCEPT,
-    PROCESS,
-    HANDLE
+    LISTEN,     // 3
+    ACCEPT,     // 4
+    PROCESS,    // 5
+    HANDLE      // 6
 };
 
 static volatile sig_atomic_t exit_flag;
@@ -283,9 +283,9 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
 
     // this will process the request and store in the server struct
-    display("processing request");
+    // display("processing request");
     dc_write(env, err, STDOUT_FILENO, request, strlen(request));
-    printf("%d\n", strlen(request));
+    // printf("%d\n", strlen(request));
 
     // dummy struct
     // struct http_request *newreq = (struct http_request *) malloc(sizeof(struct http_request));
@@ -294,7 +294,6 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     free(request);
     free(buffer);
-    display("moving to handle");
     next_state = HANDLE;
     return next_state;
 }
@@ -307,7 +306,7 @@ int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     response =
         "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
-        "16\r\n\r\nHello World!";
+        "12\r\n\r\nHello World!\n";
     
     dc_write(env, err, server->client_socket_fd, response, strlen(response));
     if (dc_error_has_no_error(err))

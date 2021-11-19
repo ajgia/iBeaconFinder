@@ -7,22 +7,40 @@
 #include "http_.h"
 void process_request_line(char *req_line_str, struct request_line *req_line)
 {
+
     char buf[1024] = {0};
 
     // can probably turn this into a function, will get back to it later
     char *end_method = strchr(req_line_str, ' ');
     strncpy(buf, req_line_str, (end_method - req_line_str));
 
-    // note, these have to be freed
+
+    // TODO: fix this seg fault
     req_line->req_method = strdup(buf);
 
-    char *end_path = strchr(end_method + 1, ' ');
-    strncpy(buf, end_method + 1, end_path - end_method);
-    req_line->path = strdup(buf);
 
-    char *end_ver = strchr(end_path + 1, '\0');
-    strncpy(buf, end_path + 1, end_ver - end_path);
-    req_line->HTTP_VER = strdup(buf);
+    // note, these have to be freed
+    // req_line->req_method = buf;
+    // char *method = (char*)calloc(1024, sizeof(char));
+    // method = 'G';
+    // printf("%s", req_line->req_method);
+    // *(req_line->req_method) = "HET";
+    // printf("%s", req_line->req_method);
+
+
+    // if ( !(req_line->req_method)) {
+    //     printf("null");
+    //     return;
+    // }
+
+
+    // char *end_path = strchr(end_method + 1, ' ');
+    // strncpy(buf, end_method + 1, end_path - end_method);
+    // req_line->path = strdup(buf);
+
+    // char *end_ver = strchr(end_path + 1, '\0');
+    // strncpy(buf, end_path + 1, end_ver - end_path);
+    // req_line->HTTP_VER = strdup(buf);
 }
 
 void process_request(char *request, struct http_request *req)
@@ -40,6 +58,8 @@ void process_request(char *request, struct http_request *req)
     strncpy(request_line, request, (endOfFirstLine - request));
     // printf("processing request line");
     // TODO: fix process_reqest_line seg fault
+    printf("hi\n");
+    printf("req: %s", request_line);
     process_request_line(request_line, req->req_line);
     // headers
 

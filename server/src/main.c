@@ -31,6 +31,8 @@
 #include "dbstuff.h"
 #include "http_.h"
 
+#define MAX_SIZE 8192
+
 /**
  * @brief Server info
  *
@@ -44,12 +46,8 @@ struct server
     int backlog;
     int server_socket_fd;
     int client_socket_fd;
-    // TODO: these structs should be valid
     struct http_request req;
     struct http_response res;
-    // these may need to be defined size arrays for mallocing.
-    char *request;
-    char *response;
 };
 
 static void error_reporter(const struct dc_error *err);
@@ -77,16 +75,19 @@ int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-void receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
-                  size_t size);
+void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
+                    int fd,
+                    char* dest,
+                    char* buf,
+                    size_t bufSize);
 
 enum application_states
 {
     SETUP = DC_FSM_USER_START,  // 2
-    LISTEN,
-    ACCEPT,
-    PROCESS,
-    HANDLE
+    LISTEN,     // 3
+    ACCEPT,     // 4
+    PROCESS,    // 5
+    HANDLE      // 6
 };
 
 static volatile sig_atomic_t exit_flag;
@@ -125,11 +126,13 @@ int main(void)
 
         struct server *server =
             (struct server *)dc_malloc(&env, &err, sizeof(struct server));
+        server->req.req_line = dc_malloc(&env, &err, sizeof(struct request_line));
+        server->res.res_line = dc_malloc(&env, &err, sizeof(struct response_line));
 
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              server, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
-        free(server->response);
+
         free(server);
     }
 
@@ -148,10 +151,7 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     server->hints.ai_flags = AI_CANONNAME;
     dc_getaddrinfo(env, err, server->host_name, NULL, &(server->hints),
                    &(server->result));
-    server->response = (char *)calloc(1024, sizeof(char));
-    strcat(server->response,
-           "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: "
-           "12\n\nHello World!");
+
 
     if (dc_error_has_no_error(err))
     {
@@ -269,30 +269,47 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct server *server = (struct server *)arg;
     int next_state;
+    char* request;
+    char* buffer;
 
     if (dc_error_has_error(err))
     {
         // some error handling
     }
 
-    // read file and print to std out
-    receive_data(env, err, server->client_socket_fd, 1024);
-    // construct an http struct instance
+    // allocate max size for request
+    request = (char*)dc_calloc(env, err, MAX_SIZE, sizeof(char));
+    buffer = (char*)dc_malloc(env, err, 1024);
 
+    // read from client_socket_fd up to max size in request
+    receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
+
+    // this will process the request and store in the server struct
+    // display("processing request");
+    dc_write(env, err, STDOUT_FILENO, request, strlen(request));
+    // printf("%d\n", strlen(request));
+
+    // dummy struct
+    // struct http_request *newreq = (struct http_request *) malloc(sizeof(struct http_request));
+    // process_request("GET /thing HTTP", newreq);
+    process_request(request, &server->req);
+
+    free(request);
+    free(buffer);
     next_state = HANDLE;
     return next_state;
 }
 
-// TODO: fix this state. it doesn't operate properly
-// flow of control doesn't reach this state in expected order
 int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct server *server = (struct server *)arg;
     int next_state;
+    char *response;
 
-    char *response =
-        "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: "
-        "12\n\nHello World!";
+    response =
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
+        "12\r\n\r\nHello World!\n";
+    
     dc_write(env, err, server->client_socket_fd, response, strlen(response));
     if (dc_error_has_no_error(err))
     {
@@ -304,32 +321,35 @@ int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 }
 
 /**
- * @brief Reads from fd into buffer until no more bytes, and writes to STD_OUT
- * as bytes are read.
+ * @brief Reads from fd into char* until no more bytes
  *
  * @param env
  * @param err
  * @param fd
  * @param size
  */
-void receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
-                  size_t size)
+void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
+                    int fd,
+                    char* dest,
+                    char* buf,
+                    size_t bufSize)
 {
-    // more efficient would be to allocate the buffer in the caller (main) so we
-    // don't have to keep mallocing and freeing the same data over and over
-    // again.
-    char *data;
     ssize_t count;
+    ssize_t totalWritten = 0;
+    const char *EndOfHeaderDelimiter = "\r\n\r\n";
 
-    data = dc_malloc(env, err, size);
+    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0))
+    {   
+        dc_memcpy(env, (dest + totalWritten), buf, count);
+        totalWritten += count;
 
-    while (!(exit_flag) && (count = dc_read(env, err, fd, data, size)) > 0 &&
-           dc_error_has_no_error(err))
-    {
-        dc_write(env, err, STDOUT_FILENO, data, (size_t)count);
+        char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
+        if (endOfHeader) {
+            break;
+        }
+        // TODO: handle overflow problem
     }
 
-    dc_free(env, data, size);
 }
 
 static void quit_handler(int sig_num) { exit_flag = 1; }

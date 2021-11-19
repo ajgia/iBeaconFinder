@@ -5,7 +5,7 @@
 #include <dc_posix/dc_posix_env.h>
 #include <dc_posix/dc_stdlib.h>
 #include <dc_posix/dc_string.h>
-void db_store(const struct dc_error *err, const struct dc_posix_env *env, const char *key_str, const char *val_str)
+void db_store(const struct dc_posix_env *env, struct dc_error *err, const char *key_str, const char *val_str)
 {
     DBM *db;
     if(dc_error_has_no_error(err))
@@ -21,7 +21,7 @@ void db_store(const struct dc_error *err, const struct dc_posix_env *env, const 
     }
 }
 
-void db_fetch(const struct dc_error *err, const struct dc_posix_env *env, const char *key_str, const char *val_str)
+void db_fetch(const struct dc_posix_env *env, struct dc_error *err, const char *key_str, const char *val_str)
 {
     DBM *db;
     if(dc_error_has_no_error(err))
@@ -39,4 +39,8 @@ void db_fetch(const struct dc_error *err, const struct dc_posix_env *env, const 
     {
         dc_dbm_close(env, err, db);
     }
+}
+
+void db_fetch_all(const struct dc_posix_env *env, struct dc_error *err, const char*val_str) {
+    
 }

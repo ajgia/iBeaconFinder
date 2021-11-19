@@ -91,7 +91,7 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
                       void *arg);
 enum application_states
 {
-    SETUP_WINDOW = DC_FSM_USER_START,  // 2
+    SETUP_WINDOW = DC_FSM_USER_START, // 2
     SETUP,
     AWAIT_INPUT,
     GET_ALL,
@@ -218,7 +218,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     client->host_name = "localhost";
     dc_memset(env, &(client->hints), 0, sizeof(client->hints));
-    client->hints.ai_family = PF_INET;  // PF_INET6;
+    client->hints.ai_family = PF_INET; // PF_INET6;
     client->hints.ai_socktype = SOCK_STREAM;
     client->hints.ai_flags = AI_CANONNAME;
     dc_getaddrinfo(env, err, client->host_name, NULL, &(client->hints),
@@ -313,37 +313,37 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
         choice = wgetch(client->menu_window);
         switch (choice)
         {
-            case KEY_UP:
-                client->highlight--;
-                if (client->highlight == -1)
-                {
-                    client->highlight = 0;
-                }
-                break;
-            case KEY_DOWN:
-                client->highlight++;
-                if (client->highlight == 2)
-                {
-                    client->highlight = 1;
-                }
-                break;
-                // enter
-            case 10:
-                wclear(client->display_window);
+        case KEY_UP:
+            client->highlight--;
+            if (client->highlight == -1)
+            {
+                client->highlight = 0;
+            }
+            break;
+        case KEY_DOWN:
+            client->highlight++;
+            if (client->highlight == 2)
+            {
+                client->highlight = 1;
+            }
+            break;
+            // enter
+        case 10:
+            wclear(client->display_window);
 
-                if (choices[client->highlight] == "GET_ALL")
-                {
-                    next_state = GET_ALL;
-                }
-                if (choices[client->highlight] == "GET_BY_KEY")
-                {
-                    next_state = BY_KEY;
-                }
-                wrefresh(client->display_window);
-                return next_state;
-                break;
-            default:
-                break;
+            if (choices[client->highlight] == "GET_ALL")
+            {
+                next_state = GET_ALL;
+            }
+            if (choices[client->highlight] == "GET_BY_KEY")
+            {
+                next_state = BY_KEY;
+            }
+            wrefresh(client->display_window);
+            return next_state;
+            break;
+        default:
+            break;
         }
     }
     return next_state;
@@ -383,7 +383,7 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     curs_set(0);
     noecho();
 
-    sprintf(data, " GET /ibeacons/data?%s HTTP/1.0", input);
+    sprintf(data, " GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
 
@@ -521,22 +521,22 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
 //     return next_state;
 // }
 
-// /**
-//  * @brief Reads from fd into buffer until no more bytes, and writes to
-//  * STD_OUT as bytes are read.
-//  *
-//  * @param env
-//  * @param err
-//  * @param fd
-//  * @param size
-//  */
-// void receive_data(const struct dc_posix_env *env, struct dc_error *err, int
-// fd,
+/**
+ * @brief Reads from fd into buffer until no more bytes, and writes to
+ * STD_OUT as bytes are read.
+ *
+ * @param env
+ * @param err
+ * @param fd
+ * @param size
+ */
+// void receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
 //                   size_t size)
 // {
 //     // more efficient would be to allocate the buffer in the caller (main)
 //     // so we don't have to keep mallocing and freeing the same data over and
 //     // over again.
+
 //     char *data;
 //     ssize_t count;
 

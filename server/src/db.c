@@ -5,6 +5,9 @@
 #include <dc_posix/dc_posix_env.h>
 #include <dc_posix/dc_stdlib.h>
 #include <dc_posix/dc_string.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 void db_store(const struct dc_posix_env *env, struct dc_error *err, const char *key_str, const char *val_str)
 {
     DBM *db;
@@ -41,6 +44,26 @@ void db_fetch(const struct dc_posix_env *env, struct dc_error *err, const char *
     }
 }
 
-void db_fetch_all(const struct dc_posix_env *env, struct dc_error *err, const char*val_str) {
+void db_fetch_all(const struct dc_posix_env *env, struct dc_error *err, const char *val_str) {
+    DBM *db;
+    datum key;
+    datum val;
+    char *return_str = (char *)calloc(1024, sizeof(char));
+
+    if (dc_error_has_no_error(err)) {
+        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, 0600); 
+    }
     
+    for (key = dc_dbm_firstkey(env, err, db); key.dptr != NULL; key = dc_dbm_nextkey(env, err, db) ) {
+        val = dc_dbm_fetch(env, err, db, key);
+        strcat(return_str, val.dptr);
+        strcat(return_str, ",");
+    }
+
+    if(dc_error_has_no_error(err)) {
+        dc_dbm_close(env, err, db);
+    }
+
+    dc_strcpy(env, val_str, return_str);
+    free(return_str);
 }

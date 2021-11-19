@@ -319,29 +319,46 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 }
 
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("get baby");
     struct server *server = (struct server *) arg;
     int next_state;
+    char *val = (char*)calloc(1024, sizeof(char));
 
     // get from dbm, construct response, write response
 
     if (strstr(server->req.req_line->path, "all")) {
         // get all
         // some db_fetch call
+        display("get all");
+        db_fetch_all(env, err, val);
+        printf("%s", val);
     }
     else {
         // get by id
         // construct id
+        display("get by id baby");
         char *path = strdup(server->req.req_line->path);
         char *key;
-        char *val;
         
         // extract_key(path, key, "?")
         key = strtok(path, "?"); // returns piece before "?"
-        key = strtok(NULL, ""); // NOW we have key. strtok is weird
+        key = strtok(NULL, " "); // NOW we have key. strtok is weird
 
-        db_fetch(err, env, key, val);
+        printf("%s", key);
+
+        db_fetch(env, err, key, val);
         printf("%s", val);
+        free(path);
     }
+
+    char* response = (char*)calloc(1024, sizeof(char));
+    
+
+    // TODO: strcture this in http
+    if (val) {
+        dc_write(env, err, server->client_socket_fd, val, strlen(val));
+    }
+    
 
 
     // exit
@@ -350,11 +367,14 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         dc_close(env, err, server->client_socket_fd);
     }
 
+    free(val);
+    free(response);
     next_state = LISTEN;
     return next_state;
 }
 
 int post(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("post baby");
     struct server *server = (struct server *)arg;
     int next_state;
     char *path = strdup(server->req.req_line->path);
@@ -366,19 +386,24 @@ int post(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     key = strtok(path, "?"); // returns piece before "?"
     key = strtok(NULL, ":"); // now we have key. strtok is weird
     val = strtok(NULL, "");
+    printf("%s%s", key, val);
 
-    db_store(err, env, key, val);
+    db_store(env, err, key, val);
 
     if (dc_error_has_no_error(err))
     {
         dc_close(env, err, server->client_socket_fd);
     }
 
+    // TODO: respond with success/failure
+
+    free(path);
     next_state = LISTEN;
     return next_state;
 }
 
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("invalid baby");
     struct server *server = (struct server *)arg;
     int next_state;
 

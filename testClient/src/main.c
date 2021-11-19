@@ -175,10 +175,13 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
     // Input window
 
-    WINDOW *menu_window = newwin(4, xMax / 2, yMax - 8, xMax / 4);
+    WINDOW *menu_window = newwin(5, xMax / 2, yMax - 8, xMax / 4);
     client->menu_window = menu_window;
     wattron(menu_window, COLOR_PAIR(1));
     box(menu_window, 0, 0);
+    WINDOW *menu_window_border = newwin(7, (xMax / 2) + 2, yMax - 8, xMax / 4);
+    wattron(menu_window_border, COLOR_PAIR(2));
+    box(menu_window_border, 0, 0);
 
     // num rows, num columns, begin y, begin x
     WINDOW *display_window = newwin(7, xMax / 2, yMax - 15, xMax / 4);
@@ -189,8 +192,10 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     wattroff(menu_window, COLOR_PAIR(1));
     wattroff(display_window, COLOR_PAIR(2));
     refresh();
+    wrefresh(menu_window_border);
     wrefresh(menu_window);
     wrefresh(display_window);
+
     keypad(menu_window, true);
 
     if (dc_error_has_no_error(err))
@@ -287,6 +292,7 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
 
     int display_window_ymax, display_window_xmax;
     getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
+
     while (1)
     {
         for (size_t i = 0; i < 2; i++)
@@ -363,7 +369,18 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct client *client = (struct client *)arg;
     int next_state;
 
+    char input[1024];
+    char data[1024];
+    mvwprintw(client->menu_window, 3, 1, "ENTER KEY: ");
+    wrefresh(client->menu_window);
+    echo();
+    wgetstr(client->menu_window, input);
+    noecho();
+
+    sprintf(data, " GET /ibeacons/data?%s HTTP/1.0", input);
+    dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
+
     return next_state;
 }
 int _build_request(const struct dc_posix_env *env, struct dc_error *err,

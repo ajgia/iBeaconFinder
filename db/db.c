@@ -28,13 +28,3 @@ void db_store(const struct dc_error *err, const struct dc_posix_env *env,
 // db_fetch() { ndbm_ibeacons_fetch(); }
 // db_open() { ndbm_ibeacons_open(); };
 // db_close() { ndbm_ibeacons_close(); };
-
-int main()
-{
-    db_nmdb *d;
-    // cast to base type
-    database *data = (database *)d;
-    // foo((database *)d);
-    // cast to derived type
-    db_nmdb *b = (db_nmdb *)data;
-}

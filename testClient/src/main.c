@@ -46,6 +46,7 @@ struct client
     int client_socket_fd;
     WINDOW *menu_window;
     WINDOW *display_window;
+    int highlight;
     // TODO: these structs should be valid
     // struct http_request req;
     // struct http_response res;
@@ -135,8 +136,8 @@ int main(void)
     // FSM setup
     fsm_info = dc_fsm_info_create(&env, &err, "iBeaconclient");
     // dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
-    dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
-    dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
+    // dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
+    // dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
 
     if (dc_error_has_no_error(&err))
     {
@@ -161,6 +162,7 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     struct client *client = (struct client *)arg;
     int next_state;
 
+    client->highlight = 0;
     initscr();
     noecho();
     cbreak();
@@ -265,7 +267,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
             if (dc_error_has_no_error(err))
             {
                 // bind address (port) to socket
-                dc_connect(&env, &err, client->client_socket_fd, sockaddr,
+                dc_connect(env, err, client->client_socket_fd, sockaddr,
                            sockaddr_size);
 
                 // go to next state
@@ -282,14 +284,14 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
     int next_state;
     char *choices[2] = {"GET_ALL", "GET_BY_KEY"};
     int choice;
-    int highlight = 0;
+
     int display_window_ymax, display_window_xmax;
     getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
     while (1)
     {
         for (size_t i = 0; i < 2; i++)
         {
-            if (i == highlight)
+            if (i == client->highlight)
             {
                 wattron(client->menu_window, A_REVERSE);
             }
@@ -300,33 +302,36 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
         switch (choice)
         {
             case KEY_UP:
-                highlight--;
-                if (highlight == -1)
+                client->highlight--;
+                if (client->highlight == -1)
                 {
-                    highlight = 0;
+                    client->highlight = 0;
                 }
                 break;
             case KEY_DOWN:
-                highlight++;
-                if (highlight == 2)
+                client->highlight++;
+                if (client->highlight == 2)
                 {
-                    highlight = 1;
+                    client->highlight = 1;
                 }
                 break;
                 // enter
             case 10:
                 mvwprintw(client->display_window, display_window_ymax / 2,
                           (display_window_xmax / 2) - 2, "                   ");
-
-                // SEND GET REQUEST
-                // WAIT RESPONSE
-                // PARSE RESPONSE
-                // PRINT RESPONSE
                 mvwprintw(client->display_window, display_window_ymax / 2,
                           (display_window_xmax / 2) - 2, "%s",
-                          choices[highlight]);
-                next_state = GET_ALL;
+                          choices[client->highlight]);
+                if (choices[client->highlight] == "GET_ALL")
+                {
+                    next_state = GET_ALL;
+                }
+                if (choices[client->highlight] == "GET_BY_KEY")
+                {
+                    next_state = BY_KEY;
+                }
                 wrefresh(client->display_window);
+                return next_state;
                 break;
             default:
                 break;
@@ -347,7 +352,9 @@ int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
+    char data[1024];
+    sprintf(data, " GET /ibeacons/data?all HTTP/1.0");
+    dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
     return next_state;
 }
@@ -382,7 +389,14 @@ int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
+    int display_window_ymax, display_window_xmax;
+    char response[1024];
+    getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
 
+    strcpy(response, "MAJ-MIN : ");
+    mvwprintw(client->display_window, 1, 1, "%s", response);
+
+    wrefresh(client->display_window);
     next_state = DISPLAY_RESPONSE;
     return next_state;
 }

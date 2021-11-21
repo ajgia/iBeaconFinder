@@ -82,7 +82,7 @@ int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int post(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
 void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
@@ -97,7 +97,7 @@ enum application_states
     ACCEPT,     // 4
     PROCESS,    // 5
     _GET,        // 6
-    _POST,       // 7
+    _PUT,       // 7
     INVALID     // 8
 };
 
@@ -118,10 +118,10 @@ int                          main(void)
         {LISTEN, ACCEPT, _accept},
         {ACCEPT, PROCESS, process},
         {PROCESS, _GET, get}, 
-        {PROCESS, _POST, post},
+        {PROCESS, _PUT, put},
         {PROCESS, INVALID, invalid},
         {_GET, LISTEN, _listen},
-        {_POST, LISTEN, _listen},
+        {_PUT, LISTEN, _listen},
         {INVALID, LISTEN, _listen}
         };
 
@@ -311,8 +311,8 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     printf("%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
     if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
         next_state = _GET;
-    else if ( strcmp(server->req.req_line->req_method, "POST") == 0 )
-        next_state = _POST;
+    else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
+        next_state = _PUT;
     else
         next_state = INVALID;
 
@@ -378,8 +378,8 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     return next_state;
 }
 
-int post(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    display("post baby");
+int put(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("put baby");
     struct server *server = (struct server *)arg;
     int next_state;
     char *path = strdup(server->req.req_line->path);

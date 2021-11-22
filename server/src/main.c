@@ -53,6 +53,18 @@ struct server
     struct http_response res;
 };
 
+struct application_settings
+{
+    struct dc_opt_settings opts;
+    struct dc_setting_bool *verbose;
+    struct dc_setting_string *hostname;
+    struct dc_setting_regex *ip_version;
+    struct dc_setting_uint16 *port;
+    struct dc_setting_bool *reuse_address;
+    struct addrinfo *address;
+    int server_socket_fd;
+};
+
 static void error_reporter(const struct dc_error *err);
 static void
 trace_reporter(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
@@ -164,6 +176,7 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct server *server = (struct server *)arg;
     int            next_state;
 
+    // server->host_name = "Alexanders-MacBook-Pro.local";
     server->host_name = "localhost";
     dc_memset(env, &(server->hints), 0, sizeof(server->hints));
     server->hints.ai_family   = PF_INET;    // PF_INET6;
@@ -172,12 +185,12 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     dc_getaddrinfo(env, err, server->host_name, NULL, &(server->hints),
                    &(server->result));
 
-
+    server->server_socket_fd = dc_network_create_socket(env, err, server->result);
     if (dc_error_has_no_error(err))
     {
         // create socket
-        server->server_socket_fd =
-            dc_socket(env, err, server->result->ai_family, server->result->ai_socktype, server->result->ai_protocol);
+        // server->server_socket_fd =
+        //     dc_socket(env, err, server->result->ai_family, server->result->ai_socktype, server->result->ai_protocol);
 
         if(dc_error_has_no_error(err))
         {
@@ -192,7 +205,7 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
             // sudo lsof -i:7123
             // kill a process:
             // kill -9 PID
-            port           = 7123;
+            port           = 80;
             converted_port = htons(port);
 
             // think this is ipv4 or ipv6 stuff
@@ -247,7 +260,7 @@ int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     server->backlog = 5;
     // listen tells socket it should be capable of accepting incoming
     // connections
-    dc_listen(env, err, server->server_socket_fd, server->backlog);
+    dc_network_listen(env, err, server->server_socket_fd, server->backlog);
 
     if(dc_error_has_no_error(err))
     {
@@ -276,7 +289,7 @@ int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct server *server = (struct server *)arg;
     int            next_state;
 
-    server->client_socket_fd = dc_accept(env, err, server->server_socket_fd, NULL, NULL);
+    server->client_socket_fd = dc_network_accept(env, err, server->server_socket_fd);
     next_state               = PROCESS;
     return next_state;
 }
@@ -401,6 +414,8 @@ int put(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     }
 
     // TODO: respond with success/failure
+    char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+    dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 
     free(path);
     next_state = LISTEN;
@@ -497,6 +512,7 @@ void extract_key(char *input, char *keydest, char *sep1, char *sep2) {
 
 static void quit_handler(int sig_num)
 {
+    printf("CAUGHT!\n");
     exit_flag = 1;
 }
 

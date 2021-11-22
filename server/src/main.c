@@ -51,23 +51,30 @@ struct server
     int client_socket_fd;
     struct http_request req;
     struct http_response res;
+
+    struct application_settings
+    {
+        struct dc_opt_settings opts;
+        struct dc_setting_bool *verbose;
+        struct dc_setting_string *hostname;
+        struct dc_setting_regex *ip_version;
+        struct dc_setting_uint16 *port;
+        struct dc_setting_bool *reuse_address;
+        struct addrinfo *address;
+        int server_socket_fd;
+    } settings;
 };
 
-struct application_settings
-{
-    struct dc_opt_settings opts;
-    struct dc_setting_bool *verbose;
-    struct dc_setting_string *hostname;
-    struct dc_setting_regex *ip_version;
-    struct dc_setting_uint16 *port;
-    struct dc_setting_bool *reuse_address;
-    struct addrinfo *address;
-    int server_socket_fd;
-};
+
+
+static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
+
+static int
+destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings **psettings);
 
 static void error_reporter(const struct dc_error *err);
-static void
-trace_reporter(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
+
+static void trace_reporter(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
 
 static void will_change_state(const struct dc_posix_env *env,
                               struct dc_error           *err,
@@ -87,6 +94,8 @@ static void bad_change_state(const struct dc_posix_env *env,
                              int                        to_state_id);
 
 static void quit_handler(int sig_num);
+static void signal_handler(int signnum);
+
 
 int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
@@ -114,14 +123,29 @@ enum application_states
 };
 
 static volatile sig_atomic_t exit_flag;
+static volatile sig_atomic_t exit_signal = 0;
 
-int                          main(void)
+
+int main(void)
 {
     dc_error_reporter               reporter;
     dc_posix_tracer                 tracer;
-    struct dc_error                 err;
     struct dc_posix_env             env;
+    struct dc_error                 err;
+    struct dc_application_info      *info;
     int                             ret_val;
+    struct sigaction                sa;
+
+    reporter                        = error_reporter;
+    tracer                          = trace_reporter;
+    tracer                          = NULL;
+    dc_error_init(&err, reporter);
+    dc_posix_env_init(&env, tracer);
+    dc_memset(&env, &sa, 0, sizeof(sa));
+    sa.sa_handler = &signal_handler;
+    dc_sigaction(&env, &err, SIGINT, &sa, NULL);
+    dc_sigaction(&env, &err, SIGTERM, &sa, NULL);
+    ret_val  = EXIT_SUCCESS;
 
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
@@ -136,13 +160,6 @@ int                          main(void)
         {_PUT, LISTEN, _listen},
         {INVALID, LISTEN, _listen}
         };
-
-    reporter                                      = error_reporter;
-    tracer                                        = trace_reporter;
-    tracer                                        = NULL;
-    dc_error_init(&err, reporter);
-    dc_posix_env_init(&env, tracer);
-    ret_val  = EXIT_SUCCESS;
 
     // FSM setup
     fsm_info = dc_fsm_info_create(&env, &err, "iBeaconServer");
@@ -169,6 +186,71 @@ int                          main(void)
     }
 
     return ret_val;
+}
+
+static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err)
+{
+    static const bool default_verbose = false;
+    static const char *default_hostname = "localhost";
+    static const char *default_ip = "IPv4";
+    static const uint16_t default_port = 80; // TODO: replace this with header value
+    static const bool default_reuse = false;
+    struct application_settings *settings;
+
+    settings = dc_malloc(env, err, sizeof(struct application_settings));
+
+    if(settings == NULL)
+    {
+        return NULL;
+    }
+
+    settings->opts.parent.config_path = dc_setting_path_create(env, err);
+    settings->verbose = dc_setting_bool_create(env, err);
+    settings->hostname = dc_setting_string_create(env, err);
+    settings->ip_version = dc_setting_regex_create(env, err, "^IPv[4|6]");
+    settings->port = dc_setting_uint16_create(env, err);
+    settings->reuse_address = dc_setting_bool_create(env, err);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
+    struct options opts[] =
+            {
+                    {(struct dc_setting *)settings->opts.parent.config_path, dc_options_set_path,   "config",  required_argument, 'c', "CONFIG",        dc_string_from_string, NULL,            dc_string_from_config, NULL},
+                    {(struct dc_setting *)settings->verbose,                 dc_options_set_bool,   "verbose", no_argument,       'v', "VERBOSE",       dc_flag_from_string,   "verbose",       dc_flag_from_config,   &default_verbose},
+                    {(struct dc_setting *)settings->hostname,                dc_options_set_string, "host",    required_argument, 'h', "HOST",          dc_string_from_string, "host",          dc_string_from_config, default_hostname},
+                    {(struct dc_setting *)settings->ip_version,              dc_options_set_regex,  "ip",      required_argument, 'i', "IP",            dc_string_from_string, "ip",            dc_string_from_config, default_ip},
+                    {(struct dc_setting *)settings->port,                    dc_options_set_uint16, "port",    required_argument, 'p', "PORT",          dc_uint16_from_string, "port",          dc_uint16_from_config, &default_port},
+                    {(struct dc_setting *)settings->reuse_address,           dc_options_set_bool,   "force",   no_argument,       'f', "REUSE_ADDRESS", dc_flag_from_string,   "reuse_address", dc_flag_from_config,   &default_reuse},
+            };
+#pragma GCC diagnostic pop
+
+    // note the trick here - we use calloc and add 1 to ensure the last line is all 0/NULL
+    settings->opts.opts = dc_calloc(env, err, (sizeof(opts) / sizeof(struct options)) + 1, sizeof(struct options));
+    dc_memcpy(env, settings->opts.opts, opts, sizeof(opts));
+    settings->opts.flags = "c:vh:i:p:f";
+    settings->opts.env_prefix = "DC_ECHO_";
+
+    return (struct dc_application_settings *)settings;
+}
+
+static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
+                            struct dc_application_settings **psettings)
+{
+    struct application_settings *app_settings;
+
+    app_settings = (struct application_settings *)*psettings;
+    dc_setting_bool_destroy(env, &app_settings->verbose);
+    dc_setting_string_destroy(env, &app_settings->hostname);
+    dc_setting_uint16_destroy(env, &app_settings->port);
+    dc_free(env, app_settings->opts.opts, app_settings->opts.opts_size);
+    dc_free(env, app_settings, sizeof(struct application_settings));
+
+    if(env->null_free)
+    {
+        *psettings = NULL;
+    }
+
+    return 0;
 }
 
 int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
@@ -515,6 +597,13 @@ static void quit_handler(int sig_num)
     printf("CAUGHT!\n");
     exit_flag = 1;
 }
+
+void signal_handler(__attribute__ ((unused)) int signnum)
+{
+    printf("caught\n");
+    exit_signal = 1;
+}
+
 
 static void error_reporter(const struct dc_error *err)
 {

@@ -36,29 +36,12 @@
  * @brief Server info
  *
  */
-
 struct server
 {
-    const char *host_name;
-    struct addrinfo hints;
-    struct addrinfo *result;
-    int backlog;
     int server_socket_fd;
     int client_socket_fd;
     struct http_request req;
     struct http_response res;
-
-    // struct application_settings
-    // {
-    //     struct dc_opt_settings opts;
-    //     struct dc_setting_bool *verbose;
-    //     struct dc_setting_string *hostname;
-    //     struct dc_setting_regex *ip_version;
-    //     struct dc_setting_uint16 *port;
-    //     struct dc_setting_bool *reuse_address;
-    //     struct addrinfo *address;
-    //     int server_socket_fd;
-    // } settings;
 };
 
 struct application_settings
@@ -72,6 +55,9 @@ struct application_settings
     struct addrinfo *address;
     int server_socket_fd;
 };
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile sig_atomic_t exit_signal = 0;
 
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
 
@@ -119,6 +105,14 @@ int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief Reads from fd into char* until no more bytes
+ *
+ * @param env
+ * @param err
+ * @param fd
+ * @param size
+ */
 void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
@@ -126,8 +120,6 @@ void receive_data(  const struct dc_posix_env *env, struct dc_error *err,
                     size_t bufSize);
 void extract_key(char *input, char *keydest, char *sep1, char *sep2);
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile sig_atomic_t exit_signal = 0;
 static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
                            const char *file_name,
                            const char *function_name,
@@ -154,12 +146,12 @@ static void bad_change_state(const struct dc_posix_env *env,
 enum processing_states
 {
     PROCESS = DC_FSM_USER_START,    // 2
-    _GET,        // 3
-    _PUT,       // 4
-    INVALID     // 5
+    _GET,                           // 3
+    _PUT,                           // 4
+    INVALID                         // 5
 };
 
-int main(int argc, char *argv[])
+int main (int argc, char *argv[])
 {
     dc_error_reporter reporter;
     dc_posix_tracer tracer;
@@ -171,7 +163,7 @@ int main(int argc, char *argv[])
 
     reporter = error_reporter;
     tracer = trace_reporter;
-    // tracer = NULL;
+    tracer = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
     dc_memset(&env, &sa, 0, sizeof(sa));
@@ -190,7 +182,7 @@ int main(int argc, char *argv[])
 }
 
 
-static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err)
+static struct dc_application_settings *create_settings (const struct dc_posix_env *env, struct dc_error *err)
 {
     static const bool default_verbose = false;
     static const char *default_hostname = "localhost";
@@ -235,7 +227,7 @@ static struct dc_application_settings *create_settings(const struct dc_posix_env
     return (struct dc_application_settings *)settings;
 }
 
-static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
+static int destroy_settings (const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
                             struct dc_application_settings **psettings)
 {
     struct application_settings *app_settings;
@@ -256,7 +248,7 @@ static int destroy_settings(const struct dc_posix_env *env, __attribute__ ((unus
 }
 
 
-static struct dc_server_lifecycle *create_server_lifecycle(const struct dc_posix_env *env, struct dc_error *err)
+static struct dc_server_lifecycle *create_server_lifecycle (const struct dc_posix_env *env, struct dc_error *err)
 {
     struct dc_server_lifecycle *lifecycle;
 
@@ -274,14 +266,14 @@ static struct dc_server_lifecycle *create_server_lifecycle(const struct dc_posix
     return lifecycle;
 }
 
-static void destroy_server_lifecycle(const struct dc_posix_env *env, struct dc_server_lifecycle **plifecycle)
+static void destroy_server_lifecycle (const struct dc_posix_env *env, struct dc_server_lifecycle **plifecycle)
 {
     DC_TRACE(env);
     dc_server_lifecycle_destroy(env, plifecycle);
 }
 
 
-static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
+static int run (const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
                struct dc_application_settings *settings)
 {
     int ret_val;
@@ -307,7 +299,7 @@ static int run(const struct dc_posix_env *env, __attribute__ ((unused)) struct d
     return ret_val;
 }
 
-static void do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_create_settings (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     const char *ip_version;
@@ -343,7 +335,7 @@ static void do_create_settings(const struct dc_posix_env *env, struct dc_error *
     }
 }
 
-static void do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_create_socket (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     int socket_fd;
@@ -363,7 +355,7 @@ static void do_create_socket(const struct dc_posix_env *env, struct dc_error *er
     }
 }
 
-static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_set_sockopts (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     bool reuse_address;
@@ -374,7 +366,7 @@ static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err
     dc_network_opt_ip_so_reuse_addr(env, err, app_settings->server_socket_fd, reuse_address);
 }
 
-static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_bind (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     uint16_t port;
@@ -390,7 +382,7 @@ static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *
                     port);
 }
 
-static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+static void do_listen (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct application_settings *app_settings;
     int backlog;
@@ -401,13 +393,13 @@ static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void
     dc_network_listen(env, err, app_settings->server_socket_fd, backlog);
 }
 
-static void do_setup(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
+static void do_setup (const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err,
                      __attribute__ ((unused)) void *arg)
 {
     DC_TRACE(env);
 }
 
-static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int *client_socket_fd, void *arg)
+static bool do_accept (const struct dc_posix_env *env, struct dc_error *err, int *client_socket_fd, void *arg)
 {
     struct application_settings *app_settings;
     bool ret_val;
@@ -426,14 +418,28 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int 
     }
     else
     {
-        display("here");
-        // startProcessingFSM(env, err);
+        startProcessingFSM(env, err);
     }
 
     return ret_val;
 }
 
-int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err) {
+static void do_shutdown (const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
+{
+    DC_TRACE(env);
+}
+
+static void
+do_destroy_settings (const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
+{
+    struct application_settings *app_settings;
+
+    DC_TRACE(env);
+    app_settings = arg;
+    dc_freeaddrinfo(env, app_settings->address);
+}
+
+int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err) {
     int ret_val;
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
@@ -444,10 +450,10 @@ int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err) {
         {_GET, DC_FSM_EXIT, NULL},
         {_PUT, DC_FSM_EXIT, NULL},
         {INVALID, DC_FSM_EXIT, NULL},
-        };
+    };
 
     ret_val = EXIT_SUCCESS;
-    fsm_info = dc_fsm_info_create(env, err, "Server Processing");
+    fsm_info = dc_fsm_info_create(env, err, "Processing");
     dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
     dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
     dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
@@ -456,14 +462,21 @@ int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err) {
         int from_state;
         int to_state;
 
-        ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, NULL, transitions);
-        dc_fsm_info_destroy(env, &fsm_info);
-    }
+        struct server *server = (struct server *)dc_malloc(env, err, sizeof(struct server));
+        server->req.req_line = (struct request_line *)dc_malloc(env, err, sizeof(struct request_line));
+        server->res.res_line = (struct response_line *)dc_malloc(env, err, sizeof(struct response_line));
 
+        ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, server, transitions);
+        dc_fsm_info_destroy(env, &fsm_info);
+
+        free(server->req.req_line);
+        free(server->res.res_line);
+        free(server);
+    }
     return ret_val;
 }
 
-void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd)
+void echo (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd)
 {
     struct dc_dump_info *dump_info;
     struct dc_stream_copy_info *copy_info;
@@ -488,124 +501,110 @@ void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socke
     }
 }
 
-static void do_shutdown(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, __attribute__ ((unused)) void *arg)
+
+
+int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    DC_TRACE(env);
+    struct server *server = (struct server *)arg;
+    int next_state;
+    char* request;
+    char* buffer;
+
+    if(dc_error_has_error(err))
+    {
+        // some error handling
+    }
+
+    // allocate max size for request
+    request = (char*)dc_calloc(env, err, MAX_REQUEST_SIZE, sizeof(char));
+    buffer = (char*)dc_malloc(env, err, 1024);
+
+    // read from client_socket_fd up to max size in request
+    receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
+
+    // dc_write(env, err, STDOUT_FILENO, request, strlen(request));
+
+    // this will process the request and store in the server struct
+    process_request(request, &server->req);
+
+    free(request);
+    free(buffer);
+
+    printf("%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
+    if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
+        next_state = _GET;
+    else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
+        next_state = _PUT;
+    else
+        next_state = INVALID;
+
+    return next_state;
+
+    // display("in the fsm");
+    // return _GET;
 }
 
-static void
-do_destroy_settings(const struct dc_posix_env *env, __attribute__ ((unused)) struct dc_error *err, void *arg)
-{
-    struct application_settings *app_settings;
+int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    struct server *server = (struct server *) arg;
+    int next_state;
+    char *val = (char*)calloc(1024, sizeof(char));
 
-    DC_TRACE(env);
-    app_settings = arg;
-    dc_freeaddrinfo(env, app_settings->address);
-}
+    // get from dbm, construct response, write response
 
-int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-{
-    // struct server *server = (struct server *)arg;
-    // int next_state;
-    // char* request;
-    // char* buffer;
-
-    // if(dc_error_has_error(err))
-    // {
-    //     // some error handling
-    // }
-
-    // // allocate max size for request
-    // request = (char*)dc_calloc(env, err, MAX_SIZE, sizeof(char));
-    // buffer = (char*)dc_malloc(env, err, 1024);
-
-    // // read from client_socket_fd up to max size in request
-    // receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
-
-    // // dc_write(env, err, STDOUT_FILENO, request, strlen(request));
-
-    // // this will process the request and store in the server struct
-    // process_request(request, &server->req);
-
-    // free(request);
-    // free(buffer);
-
-    // printf("%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
-    // if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
-    //     next_state = _GET;
-    // else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
-    //     next_state = _PUT;
-    // else
-    //     next_state = INVALID;
-
-    // return next_state;
-    display("PROCESS");
-    return GET;
-}
-
-int get(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    display("GET");
-    // struct server *server = (struct server *) arg;
-    // int next_state;
-    // char *val = (char*)calloc(1024, sizeof(char));
-
-    // // get from dbm, construct response, write response
-
-    // if (strstr(server->req.req_line->path, "all")) {
-    //     // get all
-    //     // some db_fetch call
-    //     display("get all");
-    //     db_fetch_all(env, err, val);
-    //     printf("%s\n", val);
-    // }
-    // else if (strstr(server->req.req_line->path, "?")) {
-    //     // get by id
-    //     // construct id
-    //     display("get by id baby");
-    //     char *path = strdup(server->req.req_line->path);
-    //     char *key;
+    if (strstr(server->req.req_line->path, "all")) {
+        // get all
+        // some db_fetch call
+        display("get all");
+        db_fetch_all(env, err, val);
+        printf("%s\n", val);
+    }
+    else if (strstr(server->req.req_line->path, "?")) {
+        // get by id
+        // construct id
+        display("get by id baby");
+        char *path = strdup(server->req.req_line->path);
+        char *key;
         
-    //     // extract_key(path, key, "?")
-    //     key = strtok(path, "?"); // returns piece before "?"
-    //     key = strtok(NULL, " "); // NOW we have key. strtok is weird
+        // extract_key(path, key, "?")
+        key = strtok(path, "?"); // returns piece before "?"
+        key = strtok(NULL, " "); // NOW we have key. strtok is weird
 
-    //     printf("%s\n", key);
+        printf("%s\n", key);
 
-    //     db_fetch(env, err, key, val);
-    //     printf("%s\n", val);
-    //     free(path);
-    // } else {
-    //     char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
-    //     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
-    // }
+        db_fetch(env, err, key, val);
+        printf("%s\n", val);
+        free(path);
+    } else {
+        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+        dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
+    }
 
-    // char* response = (char*)calloc(1024, sizeof(char));
+    char* response = (char*)calloc(1024, sizeof(char));
     
-    // // char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 23\n\nPut your response here\n\r\n\r\n";
-    // // TODO: structure this in proper http
-    // if (val) {
-    //     char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
-    //     sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
-    //     printf("%s", response);
-    //     dc_write(env, err, server->client_socket_fd, response, strlen(response));
-    // }
+    // char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 23\n\nPut your response here\n\r\n\r\n";
+    // TODO: structure this in proper http
+    if (val) {
+        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
+        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
+        printf("%s", response);
+        dc_write(env, err, server->client_socket_fd, response, strlen(response));
+    }
 
-    // // exit
-    // if (dc_error_has_no_error(err))
-    // {
-    //     dc_close(env, err, server->client_socket_fd);
-    // }
+    // exit
+    if (dc_error_has_no_error(err))
+    {
+        dc_close(env, err, server->client_socket_fd);
+    }
 
-    // free(val);
-    // free(response);
-    // next_state = LISTEN;
-    // return next_state;
+    free(val);
+    free(response);
+    next_state = DC_FSM_EXIT;
+    return next_state;
 
-    return DC_FSM_EXIT;
+    // return DC_FSM_EXIT;
 }
 
-int put(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    display("put baby");
+int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
     char *path = strdup(server->req.req_line->path);
@@ -636,7 +635,6 @@ int put(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 }
 
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    display("invalid baby");
     struct server *server = (struct server *)arg;
     int next_state;
 
@@ -652,7 +650,7 @@ int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     return next_state;
 }
 
-int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+int handle (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct server *server = (struct server *)arg;
     int next_state;
@@ -672,15 +670,7 @@ int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     return next_state;
 }
 
-/**
- * @brief Reads from fd into char* until no more bytes
- *
- * @param env
- * @param err
- * @param fd
- * @param size
- */
-void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
+void receive_data ( const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
                     char* buf,
@@ -712,14 +702,14 @@ void receive_data(  const struct dc_posix_env *env, struct dc_error *err,
  * @param sep1 
  * @param sep2 
  */
-void extract_key(char *input, char *keydest, char *sep1, char *sep2) {
+void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
     char *target = NULL;
     char *start, *end;
 
-    if ( start = strstr( input, sep1 ) )
+    if ( start == strstr( input, sep1 ) )
     {
         start += strlen( sep1 );
-        if ( end = strstr( start, sep2 ) )
+        if ( end == strstr( start, sep2 ) )
         {
             keydest = ( char * )malloc( end - start + 1 );
             memcpy( keydest, start, end - start );
@@ -731,13 +721,13 @@ void extract_key(char *input, char *keydest, char *sep1, char *sep2) {
 
 }
 
-void signal_handler(__attribute__ ((unused)) int signnum)
+void signal_handler (__attribute__ ((unused)) int signnum)
 {
     printf("CAUGHT!\n");
     exit_signal = 1;
 }
 
-static void error_reporter(const struct dc_error *err)
+static void error_reporter (const struct dc_error *err)
 {
     if(err->type == DC_ERROR_ERRNO)
     {
@@ -754,7 +744,7 @@ static void error_reporter(const struct dc_error *err)
 }
 
 
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
+static void trace_reporter (__attribute__((unused)) const struct dc_posix_env *env,
                            const char *file_name,
                            const char *function_name,
                            size_t line_number)
@@ -762,14 +752,14 @@ static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *en
     fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }
 
-static void trace( const struct dc_posix_env *env, const char *file_name, const char *function_name,
+static void trace ( const struct dc_posix_env *env, const char *file_name, const char *function_name,
       size_t line_number)
 {
     fprintf(stdout, "TRACE: %s : %s : @ %zu\n", file_name, function_name, line_number);
 }
 
 
-static void will_change_state(const struct dc_posix_env *env,
+static void will_change_state (const struct dc_posix_env *env,
                               struct dc_error           *err,
                               const struct dc_fsm_info  *info,
                               int                        from_state_id,
@@ -778,7 +768,7 @@ static void will_change_state(const struct dc_posix_env *env,
     printf("%s: will change %d -> %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id);
 }
 
-static void did_change_state(const struct dc_posix_env *env,
+static void did_change_state (const struct dc_posix_env *env,
                              struct dc_error           *err,
                              const struct dc_fsm_info  *info,
                              int                        from_state_id,
@@ -788,7 +778,7 @@ static void did_change_state(const struct dc_posix_env *env,
     printf("%s: did change %d -> %d moving to %d\n", dc_fsm_info_get_name(info), from_state_id, to_state_id, next_id);
 }
 
-static void bad_change_state(const struct dc_posix_env *env,
+static void bad_change_state (const struct dc_posix_env *env,
                              struct dc_error           *err,
                              const struct dc_fsm_info  *info,
                              int                        from_state_id,

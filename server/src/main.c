@@ -100,10 +100,11 @@ static void read_displayer(const struct dc_posix_env *env, struct dc_error *err,
 void freeServerStruct(struct server *server);
 int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
+void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val);
+
 /**
  * @brief Reads from fd into char* until no more bytes
  *
@@ -525,7 +526,7 @@ void echo (const struct dc_posix_env *env, struct dc_error *err, int client_sock
 
 int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
-    display("process");
+    // display("process");
     struct server *server = (struct server *)arg;
     int next_state;
     char* request;
@@ -555,7 +556,7 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     free(request);
     free(buffer);
 
-    printf("%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
+    printf("\nREQ LINE\n%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
     if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
         next_state = _GET;
     else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
@@ -567,12 +568,9 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 }
 
 int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    display("get");
     struct server *server = (struct server *) arg;
     int next_state;
     char *val = (char*)calloc(1024, sizeof(char));
-
-    // get from dbm, construct response, write response
 
     if (strstr(server->req.req_line->path, "all")) {
         // get all
@@ -580,11 +578,13 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         display("get all");
         db_fetch_all(env, err, val);
         printf("%s\n", val);
+        writeValToClient(env, err, server, val);
+
     }
     else if (strstr(server->req.req_line->path, "?")) {
         // get by id
         // construct id
-        display("get by id baby");
+        display("get by id");
         char *path = strdup(server->req.req_line->path);
         char *key;
         
@@ -595,37 +595,43 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         printf("%s\n", key);
 
         db_fetch(env, err, key, val);
-        printf("%s\n", val);
+        printf("val returned from db: %s\n", val);
+        writeValToClient(env, err, server, val);
         free(path);
-    } else {
-        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+    } else if (strcmp(server->req.req_line->path, "/") == 0) {
+        display("basic get");
+        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 14\n\nBeacon Server\n\r\n\r\n";
         dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
     }
+    else {
+        char *reponse404 = "HTTP/1.0 404 Not Found\nContent-Type: text/plain\nContent-Length: 10\n\nNot Found\n\r\n\r\n";
+        dc_write(env, err, server->client_socket_fd, reponse404, strlen(reponse404));
 
-    char* response = (char*)calloc(1024, sizeof(char));
-    
-    // char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 23\n\nPut your response here\n\r\n\r\n";
-    // TODO: structure this in proper http
-    if (val) {
-        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
-        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
-        printf("%s", response);
-        dc_write(env, err, server->client_socket_fd, response, strlen(response));
     }
 
-    // exit
+
+
     if (dc_error_has_no_error(err))
     {
         dc_close(env, err, server->client_socket_fd);
     }
 
     free(val);
-    free(response);
     next_state = DC_FSM_EXIT;
     return next_state;
-
-    // return DC_FSM_EXIT;
 }
+
+void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val) {
+    if (val) {
+        char* response = (char*)calloc(1024, sizeof(char));
+        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
+        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
+        printf("%s", response);
+        dc_write(env, err, server->client_socket_fd, response, strlen(response));
+        free (response);
+    }
+}
+
 
 int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
@@ -633,20 +639,19 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     char *path = strdup(server->req.req_line->path);
     char *key;
     char *val;
-        
+    const char *response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 13\n\nPUT Complete\n\r\n\r\n";
 
     // extract_key(path, key, "?")
-    key = strtok(path, "?"); // returns piece before "?"
-    key = strtok(NULL, ":"); // now we have key. strtok is weird
-    val = strtok(NULL, "");
-    printf("%s%s", key, val);
+    val = strtok(path, "="); // returns piece before "?"
+    val = strtok(NULL, "&"); // now we have key. strtok is weird
+    key = strtok(NULL, "=");
+    key = strtok(NULL, "&");
+
+    // printf("PUT: %s %s", key, val);
 
     db_store(env, err, key, val);
 
-
-    // TODO: respond with success/failure
-    const char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
-    dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
+    dc_write(env, err, server->client_socket_fd, response, strlen(response));
 
     if (dc_error_has_no_error(err))
     {
@@ -661,31 +666,11 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
-
     const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 12\n\nBad Request\n\r\n\r\n";
+    
     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 
     if (dc_error_has_no_error(err))
-    {
-        dc_close(env, err, server->client_socket_fd);
-    }
-
-    next_state = DC_FSM_EXIT;
-    return next_state;
-}
-
-int handle (const struct dc_posix_env *env, struct dc_error *err, void *arg)
-{
-    struct server *server = (struct server *)arg;
-    int next_state;
-    const char *response;
-
-    response =
-        "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
-        "12\r\n\r\nHello World!\n";
-    
-    dc_write(env, err, server->client_socket_fd, response, strlen(response));
-    if(dc_error_has_no_error(err))
     {
         dc_close(env, err, server->client_socket_fd);
     }
@@ -703,19 +688,22 @@ int receive_data ( const struct dc_posix_env *env, struct dc_error *err,
     ssize_t count;
     ssize_t totalWritten = 0;
     const char *EndOfHeaderDelimiter = "\r\n\r\n";
+    const char* lastFourChars;
 
-    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0))
+    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0) )
     {   
+        
+        // dc_memcpy(env, lastFourChars, (buf + count - 4), 4);
+
         ssize_t spaceInDest = MAX_REQUEST_SIZE - totalWritten;
         if ( count > spaceInDest) {
-            // request too large. error handle
-            // abort, return some http error code (400, 413) to client
             return EXIT_FAILURE;
         }
         else {
             dc_memcpy(env, (dest + totalWritten), buf, (size_t)count);
             totalWritten += count;
         }
+
 
         // End of transmission check
         char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
@@ -724,7 +712,6 @@ int receive_data ( const struct dc_posix_env *env, struct dc_error *err,
         }
     }
     return EXIT_SUCCESS;
-
 }
 
 void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
@@ -741,9 +728,7 @@ void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
             keydest[end - start] = '\0';
         }
     }
-
     if ( keydest ) printf( "%s\n", keydest );
-
 }
 
 void signal_handler (__attribute__ ((unused)) int signnum)

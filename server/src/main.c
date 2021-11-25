@@ -111,8 +111,9 @@ int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
  * @param err
  * @param fd
  * @param size
+ * @return 0 if successful
  */
-void receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
+int receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
                     char* buf,
@@ -194,7 +195,7 @@ static struct dc_application_settings *create_settings (const struct dc_posix_en
     static const bool default_verbose = false;
     static const char *default_hostname = "localhost";
     static const char *default_ip = "IPv4";
-    static const uint16_t default_port = DEFAULT_PORT;
+    static const uint16_t default_port = DEFAULT_PORT; // ignore vscode red underline
     static const bool default_reuse = false;
     struct application_settings *settings;
 
@@ -540,7 +541,11 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     buffer = (char*)dc_malloc(env, err, 1024);
 
     // read from client_socket_fd up to max size in request
-    receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
+    int successRead;
+    if ( (successRead = receive_data(env, err, server->client_socket_fd, request, buffer, 1024)) != 0 ) {
+        next_state = INVALID;
+        return next_state;
+    }
 
     dc_write(env, err, STDOUT_FILENO, request, strlen(request));
 
@@ -559,9 +564,6 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
         next_state = INVALID;
 
     return next_state;
-
-    // display("in the fsm");
-    // return _GET;
 }
 
 int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
@@ -659,7 +661,7 @@ int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
 
-    const char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
+    const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 12\n\nBad Request\n\r\n\r\n";
     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 
     if (dc_error_has_no_error(err))
@@ -678,7 +680,7 @@ int handle (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     const char *response;
 
     response =
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
+        "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
         "12\r\n\r\nHello World!\n";
     
     dc_write(env, err, server->client_socket_fd, response, strlen(response));
@@ -691,7 +693,7 @@ int handle (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     return next_state;
 }
 
-void receive_data ( const struct dc_posix_env *env, struct dc_error *err, 
+int receive_data ( const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
                     char* buf,
@@ -703,16 +705,24 @@ void receive_data ( const struct dc_posix_env *env, struct dc_error *err,
 
     while (((count = dc_read(env, err, fd, buf, bufSize)) > 0))
     {   
-        dc_memcpy(env, (dest + totalWritten), buf, (size_t)count);
-        totalWritten += count;
+        ssize_t spaceInDest = MAX_REQUEST_SIZE - totalWritten;
+        if ( count > spaceInDest) {
+            // request too large. error handle
+            // abort, return some http error code (400, 413) to client
+            return EXIT_FAILURE;
+        }
+        else {
+            dc_memcpy(env, (dest + totalWritten), buf, (size_t)count);
+            totalWritten += count;
+        }
 
+        // End of transmission check
         char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
         if (endOfHeader) {
-            printf("break");
             break;
         }
-        // TODO: handle overflow problem
     }
+    return EXIT_SUCCESS;
 
 }
 
@@ -737,7 +747,7 @@ void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
 
 void signal_handler (__attribute__ ((unused)) int signnum)
 {
-    printf("CAUGHT!\n");
+    printf("\nSIGNAL CAUGHT!\n");
     exit_signal = 1;
 }
 

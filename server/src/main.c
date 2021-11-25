@@ -643,14 +643,15 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 
     db_store(env, err, key, val);
 
-    if (dc_error_has_no_error(err))
-    {
-        dc_close(env, err, server->client_socket_fd);
-    }
 
     // TODO: respond with success/failure
     const char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\n\nHello\n\r\n\r\n";
     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
+
+    if (dc_error_has_no_error(err))
+    {
+        dc_close(env, err, server->client_socket_fd);
+    }
 
     free(path);
     next_state = DC_FSM_EXIT;

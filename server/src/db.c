@@ -14,7 +14,7 @@ void db_store(const struct dc_posix_env *env, struct dc_error *err, const char *
     DBM *db;
     if(dc_error_has_no_error(err))
     {
-        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, 0600);
+        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, DC_S_IRUSR | DC_S_IWUSR | DC_S_IWGRP | DC_S_IRGRP | DC_S_IROTH | DC_S_IWOTH); 
     }
     datum key = {key_str, dc_strlen(env, key_str)};
     datum val = {val_str, dc_strlen(env, val_str)};
@@ -30,7 +30,7 @@ void db_fetch(const struct dc_posix_env *env, struct dc_error *err, const char *
     DBM *db;
     if(dc_error_has_no_error(err))
     {
-        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, 0600);
+        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, DC_S_IRUSR | DC_S_IWUSR | DC_S_IWGRP | DC_S_IRGRP | DC_S_IROTH | DC_S_IWOTH); 
     }
     datum val;
     datum key = {key_str, dc_strlen(env, key_str)};
@@ -52,7 +52,7 @@ void db_fetch_all(const struct dc_posix_env *env, struct dc_error *err, const ch
     char *return_str = (char *)calloc(1024, sizeof(char));
 
     if (dc_error_has_no_error(err)) {
-        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, 0600); 
+        db = dc_dbm_open(env, err, "beacons", DC_O_RDWR | DC_O_CREAT, DC_S_IRUSR | DC_S_IWUSR | DC_S_IWGRP | DC_S_IRGRP | DC_S_IROTH | DC_S_IWOTH); 
     }
     
     for (key = dc_dbm_firstkey(env, err, db); key.dptr != NULL; key = dc_dbm_nextkey(env, err, db) ) {

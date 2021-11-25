@@ -641,7 +641,16 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     char *key;
     char *val;
     const char *response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 13\n\nPUT Complete\n\r\n\r\n";
+    const char *badResponse = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 12\n\nBad Request\n\r\n\r\n";
 
+
+    // attempt at failure handling
+    if ( !strstr(putBody, "=" )) {
+        dc_write(env, err, server->client_socket_fd, badResponse, strlen(badResponse));
+        return DC_FSM_EXIT;
+    }
+
+    // TODO: protect against seg fault from improperly formatted PUT
     // extract_key(path, key, "?")
     val = strtok(putBody, "="); // returns piece before "?"
     val = strtok(NULL, "&"); // now we have key. strtok is weird
@@ -704,7 +713,6 @@ int receive_data ( const struct dc_posix_env *env, struct dc_error *err,
             dc_memcpy(env, (dest + totalWritten), buf, (size_t)count);
             totalWritten += count;
         }
-
 
         // End of transmission check
         char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);

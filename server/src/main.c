@@ -38,7 +38,6 @@
  */
 struct server
 {
-    int server_socket_fd;
     int client_socket_fd;
     struct http_request req;
     struct http_response res;
@@ -98,8 +97,8 @@ static void write_displayer(const struct dc_posix_env *env, struct dc_error *err
 static void read_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
                            size_t file_position, void *arg);
 
-
-int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err);
+void freeServerStruct(struct server *server);
+int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
@@ -118,6 +117,14 @@ void receive_data(  const struct dc_posix_env *env, struct dc_error *err,
                     char* dest,
                     char* buf,
                     size_t bufSize);
+/**
+ * @brief Incomplete key extraction with string parsing
+ * 
+ * @param input 
+ * @param keydest 
+ * @param sep1 
+ * @param sep2 
+ */
 void extract_key(char *input, char *keydest, char *sep1, char *sep2);
 
 static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
@@ -181,13 +188,13 @@ int main (int argc, char *argv[])
     return ret_val;
 }
 
-
+// TODO: add setting for location of beacon database
 static struct dc_application_settings *create_settings (const struct dc_posix_env *env, struct dc_error *err)
 {
     static const bool default_verbose = false;
     static const char *default_hostname = "localhost";
     static const char *default_ip = "IPv4";
-    static const uint16_t default_port = 7123; // TODO: replace with header value
+    static const uint16_t default_port = DEFAULT_PORT;
     static const bool default_reuse = false;
     struct application_settings *settings;
 
@@ -418,7 +425,8 @@ static bool do_accept (const struct dc_posix_env *env, struct dc_error *err, int
     }
     else
     {
-        startProcessingFSM(env, err);
+        // echo(env, err, *client_socket_fd);
+        startProcessingFSM(env, err, *client_socket_fd);
     }
 
     return ret_val;
@@ -439,7 +447,7 @@ do_destroy_settings (const struct dc_posix_env *env, __attribute__ ((unused)) st
     dc_freeaddrinfo(env, app_settings->address);
 }
 
-int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err) {
+int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd) {
     int ret_val;
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
@@ -453,8 +461,8 @@ int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err) {
     };
 
     ret_val = EXIT_SUCCESS;
-    fsm_info = dc_fsm_info_create(env, err, "Processing");
-    dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
+    fsm_info = dc_fsm_info_create(env, err, "ProcessingFSM");
+    // dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
     dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
     dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
 
@@ -465,16 +473,28 @@ int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err) {
         struct server *server = (struct server *)dc_malloc(env, err, sizeof(struct server));
         server->req.req_line = (struct request_line *)dc_malloc(env, err, sizeof(struct request_line));
         server->res.res_line = (struct response_line *)dc_malloc(env, err, sizeof(struct response_line));
+        server->client_socket_fd = client_socket_fd;
 
         ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, server, transitions);
         dc_fsm_info_destroy(env, &fsm_info);
 
-        free(server->req.req_line);
-        free(server->res.res_line);
-        free(server);
+        freeServerStruct(server);
+    }
+    else {
+        printf("error");
     }
     return ret_val;
 }
+
+void freeServerStruct(struct server *server) {
+    free(server->req.req_line->HTTP_VER);
+    free(server->req.req_line->path);
+    free(server->req.req_line->req_method);
+    free(server->req.req_line);
+    free(server->res.res_line);
+    free(server);
+}
+
 
 void echo (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd)
 {
@@ -496,7 +516,6 @@ void echo (const struct dc_posix_env *env, struct dc_error *err, int client_sock
                 dc_stream_copy_info_destroy(env, &copy_info);
             }
         }
-
         dc_dump_info_destroy(env, &dump_info);
     }
 }
@@ -505,6 +524,7 @@ void echo (const struct dc_posix_env *env, struct dc_error *err, int client_sock
 
 int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
+    display("process");
     struct server *server = (struct server *)arg;
     int next_state;
     char* request;
@@ -522,7 +542,7 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     // read from client_socket_fd up to max size in request
     receive_data(env, err, server->client_socket_fd, request, buffer, 1024);
 
-    // dc_write(env, err, STDOUT_FILENO, request, strlen(request));
+    dc_write(env, err, STDOUT_FILENO, request, strlen(request));
 
     // this will process the request and store in the server struct
     process_request(request, &server->req);
@@ -545,6 +565,7 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 }
 
 int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    display("get");
     struct server *server = (struct server *) arg;
     int next_state;
     char *val = (char*)calloc(1024, sizeof(char));
@@ -687,6 +708,7 @@ void receive_data ( const struct dc_posix_env *env, struct dc_error *err,
 
         char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
         if (endOfHeader) {
+            printf("break");
             break;
         }
         // TODO: handle overflow problem
@@ -694,14 +716,6 @@ void receive_data ( const struct dc_posix_env *env, struct dc_error *err,
 
 }
 
-/**
- * @brief Incomplete key extraction with string parsing
- * 
- * @param input 
- * @param keydest 
- * @param sep1 
- * @param sep2 
- */
 void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
     char *target = NULL;
     char *start, *end;

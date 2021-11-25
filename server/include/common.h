@@ -10,4 +10,6 @@
  */
 int display(const char *str);
 
+#define DEFAULT_PORT 80;
+
 #endif // TEMPLATE_COMMON_H

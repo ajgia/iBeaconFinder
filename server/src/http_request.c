@@ -5,6 +5,7 @@
 
 // to test: change the include to "../include/http_.h"
 #include "http_.h"
+#include "common.h"
 void process_request_line(char *req_line_str, struct request_line *req_line)
 {
     const static int bufSize = 1024;
@@ -30,6 +31,7 @@ void process_request_line(char *req_line_str, struct request_line *req_line)
 
 void process_request(char *request, struct http_request *req)
 {
+    const char* endOfHeaderDelimiter = "\r\n\r\n";
     // TODO: remove magic numbers
     char request_line[101] = {0};
     char *endOfFirstLine = strchr(request, '\r');
@@ -38,6 +40,9 @@ void process_request(char *request, struct http_request *req)
     // headers
 
     // body
+    char *startOfBody = strstr(request, endOfHeaderDelimiter);
+    req->message_body = (char*)calloc(MAX_REQUEST_SIZE, sizeof(char));
+    strcpy( req->message_body, (startOfBody + strlen(endOfHeaderDelimiter)) );
 }
 
 // int main()

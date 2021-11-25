@@ -30,8 +30,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_REQUEST_SIZE 8000
-
 /**
  * @brief Server info
  *
@@ -493,7 +491,10 @@ void freeServerStruct(struct server *server) {
     free(server->req.req_line->path);
     free(server->req.req_line->req_method);
     free(server->req.req_line);
+    free(server->req.message_body);
+
     free(server->res.res_line);
+
     free(server);
 }
 
@@ -557,6 +558,7 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     free(buffer);
 
     printf("\nREQ LINE\n%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
+    printf("BODY\n%s\n", server->req.message_body);
     if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
         next_state = _GET;
     else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
@@ -610,7 +612,6 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     }
 
 
-
     if (dc_error_has_no_error(err))
     {
         dc_close(env, err, server->client_socket_fd);
@@ -636,13 +637,13 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, stru
 int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
-    char *path = strdup(server->req.req_line->path);
+    char *putBody = strdup(server->req.message_body);
     char *key;
     char *val;
     const char *response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 13\n\nPUT Complete\n\r\n\r\n";
 
     // extract_key(path, key, "?")
-    val = strtok(path, "="); // returns piece before "?"
+    val = strtok(putBody, "="); // returns piece before "?"
     val = strtok(NULL, "&"); // now we have key. strtok is weird
     key = strtok(NULL, "=");
     key = strtok(NULL, "&");
@@ -658,7 +659,7 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         dc_close(env, err, server->client_socket_fd);
     }
 
-    free(path);
+    free(putBody);
     next_state = DC_FSM_EXIT;
     return next_state;
 }
@@ -695,7 +696,7 @@ int receive_data ( const struct dc_posix_env *env, struct dc_error *err,
         
         // dc_memcpy(env, lastFourChars, (buf + count - 4), 4);
 
-        ssize_t spaceInDest = MAX_REQUEST_SIZE - totalWritten;
+        ssize_t spaceInDest = MAX_REQUEST_SIZE - 1 - totalWritten;
         if ( count > spaceInDest) {
             return EXIT_FAILURE;
         }

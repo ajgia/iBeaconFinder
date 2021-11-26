@@ -36,6 +36,7 @@
  */
 struct server
 {
+    const char *dbLoc;
     int client_socket_fd;
     struct http_request req;
     struct http_response res;
@@ -49,6 +50,7 @@ struct application_settings
     struct dc_setting_regex *ip_version;
     struct dc_setting_uint16 *port;
     struct dc_setting_bool *reuse_address;
+    struct dc_setting_string *dbLoc;
     struct addrinfo *address;
     int server_socket_fd;
 };
@@ -96,7 +98,7 @@ static void read_displayer(const struct dc_posix_env *env, struct dc_error *err,
                            size_t file_position, void *arg);
 
 void freeServerStruct(struct server *server);
-int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
+int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd, const char *dbLoc);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
@@ -196,6 +198,7 @@ static struct dc_application_settings *create_settings (const struct dc_posix_en
     static const char *default_ip = "IPv4";
     static const uint16_t default_port = DEFAULT_PORT; // ignore vscode red underline
     static const bool default_reuse = false;
+    static const char *default_location = "beacons";
     struct application_settings *settings;
 
     settings = dc_malloc(env, err, sizeof(struct application_settings));
@@ -211,6 +214,7 @@ static struct dc_application_settings *create_settings (const struct dc_posix_en
     settings->ip_version = dc_setting_regex_create(env, err, "^IPv[4|6]");
     settings->port = dc_setting_uint16_create(env, err);
     settings->reuse_address = dc_setting_bool_create(env, err);
+    settings->dbLoc = dc_setting_string_create(env, err);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
@@ -222,6 +226,7 @@ static struct dc_application_settings *create_settings (const struct dc_posix_en
                     {(struct dc_setting *)settings->ip_version,              dc_options_set_regex,  "ip",      required_argument, 'i', "IP",            dc_string_from_string, "ip",            dc_string_from_config, default_ip},
                     {(struct dc_setting *)settings->port,                    dc_options_set_uint16, "port",    required_argument, 'p', "PORT",          dc_uint16_from_string, "port",          dc_uint16_from_config, &default_port},
                     {(struct dc_setting *)settings->reuse_address,           dc_options_set_bool,   "force",   no_argument,       'f', "REUSE_ADDRESS", dc_flag_from_string,   "reuse_address", dc_flag_from_config,   &default_reuse},
+                    {(struct dc_setting *)settings->dbLoc,                   dc_options_set_string, "dbLoc",   required_argument, 'd', "DB_LOCATION",   dc_string_from_string, "db_location",   dc_string_from_config, default_location},
             };
 #pragma GCC diagnostic pop
 
@@ -243,6 +248,7 @@ static int destroy_settings (const struct dc_posix_env *env, __attribute__ ((unu
     dc_setting_bool_destroy(env, &app_settings->verbose);
     dc_setting_string_destroy(env, &app_settings->hostname);
     dc_setting_uint16_destroy(env, &app_settings->port);
+    dc_setting_string_destroy(env, &app_settings->dbLoc);
     dc_free(env, app_settings->opts.opts, app_settings->opts.opts_size);
     dc_free(env, app_settings, sizeof(struct application_settings));
 
@@ -415,6 +421,7 @@ static bool do_accept (const struct dc_posix_env *env, struct dc_error *err, int
     app_settings = arg;
     ret_val = false;
     *client_socket_fd = dc_network_accept(env, err, app_settings->server_socket_fd);
+    const char *dbLoc = dc_setting_string_get(env, app_settings->dbLoc);
 
     if(dc_error_has_error(err))
     {
@@ -425,8 +432,7 @@ static bool do_accept (const struct dc_posix_env *env, struct dc_error *err, int
     }
     else
     {
-        // echo(env, err, *client_socket_fd);
-        startProcessingFSM(env, err, *client_socket_fd);
+        startProcessingFSM(env, err, *client_socket_fd, dbLoc);
     }
 
     return ret_val;
@@ -447,7 +453,7 @@ do_destroy_settings (const struct dc_posix_env *env, __attribute__ ((unused)) st
     dc_freeaddrinfo(env, app_settings->address);
 }
 
-int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd) {
+int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd, const char *dbLoc) {
     int ret_val;
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
@@ -474,6 +480,7 @@ int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, in
         server->req.req_line = (struct request_line *)dc_malloc(env, err, sizeof(struct request_line));
         server->res.res_line = (struct response_line *)dc_malloc(env, err, sizeof(struct response_line));
         server->client_socket_fd = client_socket_fd;
+        server->dbLoc = dbLoc;
 
         ret_val = dc_fsm_run(env, err, fsm_info, &from_state, &to_state, server, transitions);
         dc_fsm_info_destroy(env, &fsm_info);
@@ -497,33 +504,6 @@ void freeServerStruct(struct server *server) {
 
     free(server);
 }
-
-
-void echo (const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd)
-{
-    struct dc_dump_info *dump_info;
-    struct dc_stream_copy_info *copy_info;
-
-    dump_info = dc_dump_info_create(env, err, STDOUT_FILENO, dc_max_off_t(env));
-
-    if(dc_error_has_no_error(err))
-    {
-        copy_info = dc_stream_copy_info_create(env, err, NULL, dc_dump_dumper, dump_info, NULL, NULL);
-
-        if(dc_error_has_no_error(err))
-        {
-            dc_stream_copy(env, err, client_socket_fd, client_socket_fd, 1024, copy_info);
-
-            if(dc_error_has_no_error(err))
-            {
-                dc_stream_copy_info_destroy(env, &copy_info);
-            }
-        }
-        dc_dump_info_destroy(env, &dump_info);
-    }
-}
-
-
 
 int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
@@ -578,7 +558,7 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         // get all
         // some db_fetch call
         display("get all");
-        db_fetch_all(env, err, val);
+        db_fetch_all(env, err, val, server->dbLoc);
         printf("%s\n", val);
         writeValToClient(env, err, server, val);
 
@@ -596,7 +576,7 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 
         printf("%s\n", key);
 
-        db_fetch(env, err, key, val);
+        db_fetch(env, err, key, val, server->dbLoc);
         printf("val returned from db: %s\n", val);
         writeValToClient(env, err, server, val);
         free(path);
@@ -659,7 +639,7 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 
     // printf("PUT: %s %s", key, val);
 
-    db_store(env, err, key, val);
+    db_store(env, err, key, val, server->dbLoc);
 
     dc_write(env, err, server->client_socket_fd, response, strlen(response));
 

@@ -469,7 +469,7 @@ int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, in
     ret_val = EXIT_SUCCESS;
     fsm_info = dc_fsm_info_create(env, err, "ProcessingFSM");
     // dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
-    dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
+    // dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
     dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
 
     if (dc_error_has_no_error(err)) {
@@ -537,8 +537,8 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
     free(request);
     free(buffer);
 
-    printf("\nREQ LINE\n%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
-    printf("BODY\n%s\n", server->req.message_body);
+    // printf("\nREQ LINE\n%s\n%s\n%s\n",  server->req.req_line->req_method, server->req.req_line->path, server->req.req_line->HTTP_VER);
+    // printf("BODY\n%s\n", server->req.message_body);
     if ( strcmp(server->req.req_line->req_method, "GET") == 0 )
         next_state = _GET;
     else if ( strcmp(server->req.req_line->req_method, "PUT") == 0 )
@@ -557,16 +557,16 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     if (strstr(server->req.req_line->path, "all")) {
         // get all
         // some db_fetch call
-        display("get all");
+        // display("get all");
         db_fetch_all(env, err, val, server->dbLoc);
-        printf("%s\n", val);
+        // printf("%s\n", val);
         writeValToClient(env, err, server, val);
 
     }
     else if (strstr(server->req.req_line->path, "?")) {
         // get by id
         // construct id
-        display("get by id");
+        // display("get by id");
         char *path = strdup(server->req.req_line->path);
         char *key;
         
@@ -574,19 +574,19 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         key = strtok(path, "?"); // returns piece before "?"
         key = strtok(NULL, " "); // NOW we have key. strtok is weird
 
-        printf("%s\n", key);
+        // printf("%s\n", key);
 
         db_fetch(env, err, key, val, server->dbLoc);
-        printf("val returned from db: %s\n", val);
+        // printf("val returned from db: %s\n", val);
         writeValToClient(env, err, server, val);
         free(path);
-    } else if (strcmp(server->req.req_line->path, "/") == 0) {
-        display("basic get");
+    } else if (strcmp(server->req.req_line->path, "/") == 0 || strcmp(server->req.req_line->path, "/index") == 0 || strcmp(server->req.req_line->path, "/index.html") == 0) {
+        // display("basic get");
         char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 14\n\nBeacon Server\n\r\n\r\n";
         dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
     }
     else {
-        char *reponse404 = "HTTP/1.0 404 Not Found\nContent-Type: text/plain\nContent-Length: 10\n\nNot Found\n\r\n\r\n";
+        char *reponse404 = "HTTP/1.0 404 Not Found\nContent-Type: text/plain\nContent-Length: 14\n\n404 Not Found\n\r\n\r\n";
         dc_write(env, err, server->client_socket_fd, reponse404, strlen(reponse404));
 
     }
@@ -621,7 +621,7 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     char *key;
     char *val;
     const char *response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 13\n\nPUT Complete\n\r\n\r\n";
-    const char *badResponse = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 12\n\nBad Request\n\r\n\r\n";
+    const char *badResponse = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 16\n\n400 Bad Request\n\r\n\r\n";
 
 
     // attempt at failure handling
@@ -656,7 +656,7 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
-    const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 12\n\nBad Request\n\r\n\r\n";
+    const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 16\n\n400 Bad Request\n\r\n\r\n";
     
     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 
@@ -678,7 +678,7 @@ int receive_data ( const struct dc_posix_env *env, struct dc_error *err,
     ssize_t count;
     ssize_t totalWritten = 0;
     const char *EndOfHeaderDelimiter = "\r\n\r\n";
-    const char* lastFourChars;
+    // const char* lastFourChars;
 
     while (((count = dc_read(env, err, fd, buf, bufSize)) > 0) )
     {   

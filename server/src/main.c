@@ -104,6 +104,7 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val);
+ssize_t getContentLengthFromString(const char* inputStr);
 
 /**
  * @brief Reads from fd into char* until no more bytes
@@ -117,17 +118,7 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, stru
 int receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
-                    char* buf,
                     size_t bufSize);
-/**
- * @brief Incomplete key extraction with string parsing
- * 
- * @param input 
- * @param keydest 
- * @param sep1 
- * @param sep2 
- */
-void extract_key(char *input, char *keydest, char *sep1, char *sep2);
 
 static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
                            const char *file_name,
@@ -524,12 +515,12 @@ int process (const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     // read from client_socket_fd up to max size in request
     int successRead;
-    if ( (successRead = receive_data(env, err, server->client_socket_fd, request, buffer, 1024)) != 0 ) {
+    if ( (successRead = receive_data(env, err, server->client_socket_fd, request, MAX_REQUEST_SIZE)) != 0 ) {
         next_state = INVALID;
         return next_state;
     }
 
-    dc_write(env, err, STDOUT_FILENO, request, strlen(request));
+    printf("\n%s\n", request);
 
     // this will process the request and store in the server struct
     process_request(request, &server->req);
@@ -581,7 +572,6 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         writeValToClient(env, err, server, val);
         free(path);
     } else if (strcmp(server->req.req_line->path, "/") == 0 || strcmp(server->req.req_line->path, "/index") == 0 || strcmp(server->req.req_line->path, "/index.html") == 0) {
-        // display("basic get");
         char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 14\n\nBeacon Server\n\r\n\r\n";
         dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
     }
@@ -607,7 +597,6 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, stru
         char* response = (char*)calloc(1024, sizeof(char));
         char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
         sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
-        printf("%s", response);
         dc_write(env, err, server->client_socket_fd, response, strlen(response));
         free (response);
     }
@@ -636,8 +625,6 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     val = strtok(NULL, "&"); // now we have key. strtok is weird
     key = strtok(NULL, "=");
     key = strtok(NULL, "&");
-
-    // printf("PUT: %s %s", key, val);
 
     db_store(env, err, key, val, server->dbLoc);
 
@@ -672,52 +659,57 @@ int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 int receive_data ( const struct dc_posix_env *env, struct dc_error *err, 
                     int fd,
                     char* dest,
-                    char* buf,
                     size_t bufSize)
 {
     ssize_t count;
     ssize_t totalWritten = 0;
-    const char *EndOfHeaderDelimiter = "\r\n\r\n";
-    // const char* lastFourChars;
+    const char *endOfHeadersDelimiter = "\r\n\r\n";
+    char *endOfHeaders;
+    ssize_t spaceInDest;
+    int totalLength = MAX_REQUEST_SIZE;
+    int contentLength;
+    bool foundEndOfHeaders = false;
 
-    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0) )
+    while ( totalWritten < totalLength && ((count = dc_read(env, err, fd, dest+totalWritten, bufSize)) != 0) )
     {   
-        
-        // dc_memcpy(env, lastFourChars, (buf + count - 4), 4);
-
-        ssize_t spaceInDest = MAX_REQUEST_SIZE - 1 - totalWritten;
+        // check space remaining. if going over, abort.
+        spaceInDest = MAX_REQUEST_SIZE - 1 - totalWritten;
         if ( count > spaceInDest) {
             return EXIT_FAILURE;
         }
-        else {
-            dc_memcpy(env, (dest + totalWritten), buf, (size_t)count);
-            totalWritten += count;
-        }
 
-        // End of transmission check
-        char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
-        if (endOfHeader) {
-            break;
+        totalWritten += count;
+
+        if (!foundEndOfHeaders) {
+            endOfHeaders = strstr(dest, endOfHeadersDelimiter);
+            if (endOfHeaders) {
+                foundEndOfHeaders = true;
+                int headerLength = endOfHeaders - dest + strlen(endOfHeadersDelimiter);
+                contentLength = getContentLengthFromString(dest);
+                totalLength = headerLength + contentLength;
+            }
         }
-    }
+    } 
     return EXIT_SUCCESS;
 }
 
-void extract_key (char *input, char *keydest, char *sep1, char *sep2) {
-    char *target = NULL;
-    char *start, *end;
+ssize_t getContentLengthFromString(const char* inputStr) {
+    char *inputDup = strdup(inputStr);
+    const char *seekTo = "Content-Length: ";
+    int length;
 
-    if ( start == strstr( input, sep1 ) )
-    {
-        start += strlen( sep1 );
-        if ( end == strstr( start, sep2 ) )
-        {
-            keydest = ( char * )malloc( end - start + 1 );
-            memcpy( keydest, start, end - start );
-            keydest[end - start] = '\0';
-        }
+    if (!strstr(inputDup, seekTo)) {
+        length = 0;
     }
-    if ( keydest ) printf( "%s\n", keydest );
+    else {
+        char *lengthStr;
+        char *seekToPos = strstr(inputDup, seekTo);
+        lengthStr = strtok(seekToPos + strlen(seekTo), " ");
+        length = atoi(lengthStr);
+    }
+
+    free(inputDup);
+    return length;
 }
 
 void signal_handler (__attribute__ ((unused)) int signnum)

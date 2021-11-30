@@ -1,54 +1,63 @@
-#include "http_.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-void process_response(char *response, struct http_response *res)
-{
 
-    char response_line[1024] = {0};
-    char *end_res_line = strchr(response, '\n');
-    strncpy(response_line, response, end_res_line - response);
-    process_status_line(response_line, res->res_line);
-}
+#include "http_.h"
 void process_status_line(char *response, struct status_line *status_line)
 {
     char buf[1024] = {0};
+    char *end_res_buf;
     int res_code;
+    char *end_http_ver;
+    char *end_status_code;
+    char *start_reason;
+    size_t size;
 
-    char *end_http_ver = strchr(response, ' ');
-    strncpy(buf, response, (end_http_ver - response));
+    // takes the ptr to the end of the httpver "HTTP/1.0" & status
+    // codes "200/400"
+    end_http_ver = strchr(response, ' ');
+    end_status_code = strchr(end_http_ver + 1, ' ');
+    // ptr to start of the reason phrase "OK"
+    start_reason = end_status_code + 1;
+
+    strncpy(buf, response, (size_t)(end_http_ver - response));
     status_line->HTTP_VER = strdup(buf);
 
-    char *end_status_code = strchr(end_http_ver + 1, ' ');
-    strncpy(buf, end_http_ver + 1, end_status_code - end_http_ver);
-    res_code = atoi(buf);
-    status_line->res = (int)malloc(sizeof(res_code));
-    status_line->res = res_code;
+    // need this weird pointer to the end of the buffer to properly copy the
+    // response code as atoi gives warnings
+    end_res_buf = buf + 2;
+    strncpy(buf, end_http_ver + 1, (size_t)(end_status_code - end_http_ver));
+    res_code = (int)strtol(buf, &end_res_buf, 10);
+    status_line->res = (response_codes_t)malloc(sizeof(res_code));
+    status_line->res = (response_codes_t)res_code;
 
-    char *end_reason = strchr(end_status_code + 1, '\r');
-    strncpy(buf, end_reason + 1, end_reason - end_status_code);
-    status_line->reason_phrase = strdup(buf);
+    size = strlen(start_reason);
+    status_line->reason_phrase = strndup(start_reason, size - 1);
 }
 
-int main()
-{
-    struct http_response *test =
-        (struct http_request *)malloc(sizeof(struct http_request));
-    struct status_line *line =
-        (struct status_line *)malloc(sizeof(struct status_line));
-    test->res_line = line;
-    char *temp_response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 6\r\n\r\nHello\n\r\n\r\n";
+// testing purposes
+// int main()
+// {
+//     printf("Here");
+//     struct http_response *test =
+//         (struct http_response *)malloc(sizeof(struct http_response));
+//     struct status_line *line =
+//         (struct status_line *)malloc(sizeof(struct status_line));
+//     test->res_line = line;
+//     char *temp_response =
+//         "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "
+//         "6\r\n\r\nHello\n\r\n\r\n";
 
-    process_response(temp_response, test);
+//     process_response(temp_response, test);
 
-    printf("%s\n", test->res_line->HTTP_VER);
-    printf("%s\n", test->res_line->res);
-    printf("%s\n", test->res_line->reason_phrase);
-    // TODO: write destroy function
-    free(test->res_line->HTTP_VER);
-    free(test->res_line->reason_phrase);
-    free(test->res_line);
-    free(test);
+//     printf("%s\n", test->res_line->HTTP_VER);
+//     printf("%s\n", test->res_line->res);
+//     printf("%s\n", test->res_line->reason_phrase);
+//     // TODO: write destroy function
+//     free(test->res_line->HTTP_VER);
+//     free(test->res_line->reason_phrase);
+//     free(test->res_line);
+//     free(test);
 
-    return 0;
-}
+//     return 0;
+// }

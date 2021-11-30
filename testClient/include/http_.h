@@ -86,7 +86,7 @@ struct request_line
     char *path;
     char *HTTP_VER;
 };
-struct response_line
+struct status_line
 {
     char *HTTP_VER;
     response_codes_t res;
@@ -95,11 +95,13 @@ struct response_line
 struct http_request
 {
     struct request_line *req_line;
+    char *headers;
     char *message_body;
 };
 struct http_response
 {
-    struct response_line *res_line;
+    struct status_line *res_line;
+    char *headers;
     char *message_body;
 };
 // request methods
@@ -110,4 +112,6 @@ void process_request_line(char *str_in, struct request_line *req);
 //
 void process_header_line(char *header_line, struct http_request *req);
 
-#endif  // TEMPLATE_HTTP__H
+void process_response(char *response, struct http_response *res);
+void process_status_line(char *response, struct status_line *status_line);
+#endif // TEMPLATE_HTTP__H

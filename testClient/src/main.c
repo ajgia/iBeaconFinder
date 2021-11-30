@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#define MAX_SIZE 8192
 // #include "common.h"
 // #include "dbstuff.h"
 // #include "http_.h"
@@ -54,7 +54,11 @@ struct client
     char *request;
     char *response;
 };
-
+void receive_data(const struct dc_posix_env *env, struct dc_error *err,
+                  int fd,
+                  char *dest,
+                  char *buf,
+                  size_t bufSize);
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env,
                            const char *file_name, const char *function_name,
@@ -371,14 +375,14 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
     char input[1024];
     char data[1024];
+
     mvwprintw(client->menu_window, 2, 0, "ENTER KEY: ");
     curs_set(1);
-
     wrefresh(client->menu_window);
     echo();
+
     wgetstr(client->menu_window, input);
     curs_set(0);
     noecho();
@@ -386,7 +390,6 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     sprintf(data, " GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
-
     return next_state;
 }
 int _build_request(const struct dc_posix_env *env, struct dc_error *err,
@@ -394,7 +397,6 @@ int _build_request(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
     next_state = AWAIT_RESPONSE;
     return next_state;
 }
@@ -403,7 +405,16 @@ int _await_response(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
+    char *buffer;
+    char *response = client->response;
 
+    response = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
+    buffer = (char *)dc_malloc(env, err, 1024);
+
+    wclear(client->display_window);
+    mvwprintw(client->display_window, 1, 1, "Waiting for data...", response);
+
+    receive_data(env, err, client->client_socket_fd, response, buffer, 1024);
     next_state = PARSE_RESPONSE;
     return next_state;
 }
@@ -415,13 +426,7 @@ int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
     int display_window_ymax, display_window_xmax;
     char response[1024];
     getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
-    // if (recv)
-    // {
-    //     /* code */
-    // }
-
     mvwprintw(client->display_window, 1, 1, "K:V", response);
-
     wrefresh(client->display_window);
     next_state = DISPLAY_RESPONSE;
     return next_state;
@@ -431,125 +436,31 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
     next_state = AWAIT_INPUT;
     return next_state;
 }
-// int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
+void receive_data(const struct dc_posix_env *env, struct dc_error *err,
+                  int fd,
+                  char *dest,
+                  char *buf,
+                  size_t bufSize)
+{
+    ssize_t count;
+    ssize_t totalWritten = 0;
+    const char *EndOfHeaderDelimiter = "\r\n\r\n";
 
-//     if (dc_error_has_error(err))
-//     {
-//         // some error handling
-//     }
-
-//     client->backlog = 5;
-//     // listen tells socket it should be capable of accepting incoming
-//     // connections
-//     dc_listen(env, err, client->client_socket_fd, client->backlog);
-
-//     if (dc_error_has_no_error(err))
-//     {
-//         struct sigaction old_action;
-
-//         dc_sigaction(env, err, SIGINT, NULL, &old_action);
-
-//         if (old_action.sa_handler != SIG_IGN)
-//         {
-//             struct sigaction new_action;
-
-//             exit_flag = 0;
-//             new_action.sa_handler = quit_handler;
-//             sigemptyset(&new_action.sa_mask);
-//             new_action.sa_flags = 0;
-//             dc_sigaction(env, err, SIGINT, &new_action, NULL);
-
-//             next_state = ACCEPT;
-//             return next_state;
-//         }
-//     }
-// }
-
-// int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     client->client_socket_fd =
-//         dc_accept(env, err, client->client_socket_fd, NULL, NULL);
-//     next_state = PROCESS;
-//     return next_state;
-// }
-
-// int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     if (dc_error_has_error(err))
-//     {
-//         // some error handling
-//     }
-
-//     // read file and print to std out
-//     receive_data(env, err, client->client_socket_fd, 1024);
-//     // construct an http struct instance
-
-//     next_state = HANDLE;
-//     return next_state;
-// }
-
-// // TODO: fix this state. it doesn't operate properly
-// // flow of control doesn't reach this state in expected order
-// int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     char *response =
-//         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: "
-//         "12\n\nHello World!";
-//     dc_write(env, err, client->client_socket_fd, response, strlen(response));
-//     if (dc_error_has_no_error(err))
-//     {
-//         dc_close(env, err, client->client_socket_fd);
-//     }
-
-//     next_state = LISTEN;
-//     return next_state;
-// }
-
-/**
- * @brief Reads from fd into buffer until no more bytes, and writes to
- * STD_OUT as bytes are read.
- *
- * @param env
- * @param err
- * @param fd
- * @param size
- */
-// void receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
-//                   size_t size)
-// {
-//     // more efficient would be to allocate the buffer in the caller (main)
-//     // so we don't have to keep mallocing and freeing the same data over and
-//     // over again.
-
-//     char *data;
-//     ssize_t count;
-
-//     data = dc_malloc(env, err, size);
-
-//     while (!(exit_flag) && (count = dc_read(env, err, fd, data, size)) > 0 &&
-//            dc_error_has_no_error(err))
-//     {
-//         dc_write(env, err, STDOUT_FILENO, data, (size_t)count);
-//     }
-
-//     dc_free(env, data, size);
-// }
+    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0))
+    {
+        // dc_memcpy(env, (dest + totalWritten), buf, count);
+        totalWritten += count;
+        char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
+        if (endOfHeader)
+        {
+            break;
+        }
+        // TODO: handle overflow problem
+    }
+}
 
 static void quit_handler(int sig_num) { exit_flag = 1; }
 

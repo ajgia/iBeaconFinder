@@ -5,9 +5,11 @@
 
 // to test: change the include to "../include/http_.h"
 #include "http_.h"
+#include "common.h"
 void process_request_line(char *req_line_str, struct request_line *req_line)
 {
-    char buf[1024] = {0};
+    const static int bufSize = 1024;
+    char buf[bufSize] = {0};
 
     // can probably turn this into a function, will get back to it later
     char *end_method = strchr(req_line_str, ' ');
@@ -15,10 +17,12 @@ void process_request_line(char *req_line_str, struct request_line *req_line)
 
     // note, these have to be freed
     req_line->req_method = strdup(buf);
+    memset(buf, '\0', bufSize);
 
     char *end_path = strchr(end_method + 1, ' ');
-    strncpy(buf, end_method + 1, end_path - end_method);
+    strncpy(buf, end_method + 1, end_path - end_method - 1);
     req_line->path = strdup(buf);
+    memset(buf, '\0', bufSize);
 
     char *end_ver = strchr(end_path + 1, '\0');
     strncpy(buf, end_path + 1, end_ver - end_path);
@@ -27,6 +31,7 @@ void process_request_line(char *req_line_str, struct request_line *req_line)
 
 void process_request(char *request, struct http_request *req)
 {
+    const char* endOfHeaderDelimiter = "\r\n\r\n";
     // TODO: remove magic numbers
     char request_line[101] = {0};
     char *endOfFirstLine = strchr(request, '\r');
@@ -35,6 +40,9 @@ void process_request(char *request, struct http_request *req)
     // headers
 
     // body
+    char *startOfBody = strstr(request, endOfHeaderDelimiter);
+    req->message_body = (char*)calloc(MAX_REQUEST_SIZE, sizeof(char));
+    strcpy( req->message_body, (startOfBody + strlen(endOfHeaderDelimiter)) );
 }
 
 // int main()

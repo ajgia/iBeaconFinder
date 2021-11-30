@@ -1,5 +1,6 @@
 #ifndef TEMPLATE_HTTP__H
 #define TEMPLATE_HTTP__H
+#undef OK
 typedef enum response_codes response_codes_t;
 typedef enum request_method request_method_t;
 enum request_method
@@ -100,7 +101,8 @@ struct http_request
 };
 struct http_response
 {
-    struct status_line *res_line;
+    struct status_line *stat_line;
+    int content_length;
     char *headers;
     char *message_body;
 };
@@ -114,4 +116,5 @@ void process_header_line(char *header_line, struct http_request *req);
 
 void process_response(char *response, struct http_response *res);
 void process_status_line(char *response, struct status_line *status_line);
-#endif // TEMPLATE_HTTP__H
+void process_content_length(char *response, struct http_response *res);
+#endif  // TEMPLATE_HTTP__H

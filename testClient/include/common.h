@@ -1,7 +1,6 @@
 #ifndef TEMPLATE_COMMON_H
 #define TEMPLATE_COMMON_H
 
-
 /**
  * Displays string argument with new line
  *
@@ -10,4 +9,7 @@
  */
 int display(const char *str);
 
-#endif // TEMPLATE_COMMON_H
+#define DEFAULT_PORT 80;
+#define MAX_REQUEST_SIZE 8000
+
+#endif  // TEMPLATE_COMMON_H

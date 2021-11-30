@@ -27,6 +27,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "common.h"
+#include "http_.h"
 #define MAX_SIZE 8192
 // #include "common.h"
 // #include "dbstuff.h"
@@ -49,16 +52,13 @@ struct client
     int highlight;
     // TODO: these structs should be valid
     // struct http_request req;
-    // struct http_response res;
+    struct http_response res;
     // these may need to be defined size arrays for mallocing.
     char *request;
     char *response;
 };
-void receive_data(const struct dc_posix_env *env, struct dc_error *err,
-                  int fd,
-                  char *dest,
-                  char *buf,
-                  size_t bufSize);
+int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
+                 char *dest, size_t bufSize, void *arg);
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env,
                            const char *file_name, const char *function_name,
@@ -95,7 +95,7 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
                       void *arg);
 enum application_states
 {
-    SETUP_WINDOW = DC_FSM_USER_START, // 2
+    SETUP_WINDOW = DC_FSM_USER_START,  // 2
     SETUP,
     AWAIT_INPUT,
     GET_ALL,
@@ -128,7 +128,7 @@ int main(void)
         {BUILD_REQUEST, AWAIT_RESPONSE, _await_response},
         {AWAIT_RESPONSE, PARSE_RESPONSE, _parse_response},
         {PARSE_RESPONSE, DISPLAY_RESPONSE, _display_response},
-        {DISPLAY_RESPONSE, AWAIT_INPUT, _await_input}};
+        {DISPLAY_RESPONSE, SETUP, _await_input}};
 
     reporter = error_reporter;
     tracer = trace_reporter;
@@ -150,7 +150,8 @@ int main(void)
 
         struct client *client =
             (struct client *)dc_malloc(&env, &err, sizeof(struct client));
-
+        client->res.stat_line = (struct status_line *)dc_malloc(
+            &env, &err, sizeof(struct status_line));
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              client, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
@@ -222,7 +223,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     client->host_name = "localhost";
     dc_memset(env, &(client->hints), 0, sizeof(client->hints));
-    client->hints.ai_family = PF_INET; // PF_INET6;
+    client->hints.ai_family = PF_INET;  // PF_INET6;
     client->hints.ai_socktype = SOCK_STREAM;
     client->hints.ai_flags = AI_CANONNAME;
     dc_getaddrinfo(env, err, client->host_name, NULL, &(client->hints),
@@ -283,7 +284,6 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
                 // bind address (port) to socket
                 dc_connect(env, err, client->client_socket_fd, sockaddr,
                            sockaddr_size);
-
                 // go to next state
                 next_state = AWAIT_INPUT;
                 return next_state;
@@ -317,37 +317,37 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
         choice = wgetch(client->menu_window);
         switch (choice)
         {
-        case KEY_UP:
-            client->highlight--;
-            if (client->highlight == -1)
-            {
-                client->highlight = 0;
-            }
-            break;
-        case KEY_DOWN:
-            client->highlight++;
-            if (client->highlight == 2)
-            {
-                client->highlight = 1;
-            }
-            break;
-            // enter
-        case 10:
-            wclear(client->display_window);
+            case KEY_UP:
+                client->highlight--;
+                if (client->highlight == -1)
+                {
+                    client->highlight = 0;
+                }
+                break;
+            case KEY_DOWN:
+                client->highlight++;
+                if (client->highlight == 2)
+                {
+                    client->highlight = 1;
+                }
+                break;
+                // enter
+            case 10:
+                wclear(client->display_window);
 
-            if (choices[client->highlight] == "GET_ALL")
-            {
-                next_state = GET_ALL;
-            }
-            if (choices[client->highlight] == "GET_BY_KEY")
-            {
-                next_state = BY_KEY;
-            }
-            wrefresh(client->display_window);
-            return next_state;
-            break;
-        default:
-            break;
+                if (choices[client->highlight] == "GET_ALL")
+                {
+                    next_state = GET_ALL;
+                }
+                if (choices[client->highlight] == "GET_BY_KEY")
+                {
+                    next_state = BY_KEY;
+                }
+                wrefresh(client->display_window);
+                return next_state;
+                break;
+            default:
+                break;
         }
     }
     return next_state;
@@ -414,7 +414,6 @@ int _await_response(const struct dc_posix_env *env, struct dc_error *err,
     wclear(client->display_window);
     mvwprintw(client->display_window, 1, 1, "Waiting for data...", response);
 
-    receive_data(env, err, client->client_socket_fd, response, buffer, 1024);
     next_state = PARSE_RESPONSE;
     return next_state;
 }
@@ -439,27 +438,45 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
     next_state = AWAIT_INPUT;
     return next_state;
 }
-void receive_data(const struct dc_posix_env *env, struct dc_error *err,
-                  int fd,
-                  char *dest,
-                  char *buf,
-                  size_t bufSize)
+int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
+                 char *dest, size_t bufSize, void *arg)
 {
+    struct client *client = (struct client *)arg;
     ssize_t count;
     ssize_t totalWritten = 0;
-    const char *EndOfHeaderDelimiter = "\r\n\r\n";
+    const char *endOfHeadersDelimiter = "\r\n\r\n";
+    char *endOfHeaders;
+    ssize_t spaceInDest;
+    int totalLength = MAX_REQUEST_SIZE;
 
-    while (((count = dc_read(env, err, fd, buf, bufSize)) > 0))
+    bool foundEndOfHeaders = false;
+
+    while (totalWritten < totalLength &&
+           ((count = dc_read(env, err, fd, dest + totalWritten, bufSize)) != 0))
     {
-        // dc_memcpy(env, (dest + totalWritten), buf, count);
-        totalWritten += count;
-        char *endOfHeader = strstr(buf, EndOfHeaderDelimiter);
-        if (endOfHeader)
+        // check space remaining. if going over, abort.
+        spaceInDest = MAX_REQUEST_SIZE - 1 - totalWritten;
+        if (count > spaceInDest)
         {
-            break;
+            return EXIT_FAILURE;
         }
-        // TODO: handle overflow problem
+
+        totalWritten += count;
+
+        if (!foundEndOfHeaders)
+        {
+            endOfHeaders = strstr(dest, endOfHeadersDelimiter);
+            if (endOfHeaders)
+            {
+                foundEndOfHeaders = true;
+                int headerLength =
+                    endOfHeaders - dest + strlen(endOfHeadersDelimiter);
+                process_content_length(dest, client->response);
+                totalLength = headerLength + client->res.content_length;
+            }
+        }
     }
+    return EXIT_SUCCESS;
 }
 
 static void quit_handler(int sig_num) { exit_flag = 1; }

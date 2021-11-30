@@ -3,6 +3,14 @@
 #include <string.h>
 
 #include "http_.h"
+void process_response(char *response, struct http_response *res)
+{
+    char response_line[1024] = {0};
+    char *end_res_line = strchr(response, '\n');
+    strncpy(response_line, response, end_res_line - response);
+    process_status_line(response_line, res->stat_line);
+    process_content_length(response, res);
+}
 void process_status_line(char *response, struct status_line *status_line)
 {
     char buf[1024] = {0};
@@ -34,7 +42,27 @@ void process_status_line(char *response, struct status_line *status_line)
     size = strlen(start_reason);
     status_line->reason_phrase = strndup(start_reason, size - 1);
 }
+void process_content_length(char *response, struct http_response *res)
+{
+    char *inputDup = strdup(response);
+    char *lengthStr;
+    char *seekToPos;
+    const char *seekTo = "Content-Length: ";
+    int length;
 
+    if (!strstr(inputDup, seekTo))
+    {
+        length = 0;
+    }
+    else
+    {
+        seekToPos = strstr(inputDup, seekTo);
+        lengthStr = strtok(seekToPos + strlen(seekTo), " ");
+        length = atoi(lengthStr);
+    }
+    res->content_length = length;
+    free(inputDup);
+}
 // testing purposes
 // int main()
 // {

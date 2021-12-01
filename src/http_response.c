@@ -18,7 +18,6 @@ void process_body(char *request, struct http_response *res)
     char *start_body;
 
     totallength = strlen(request);
-    body_length = totallength - (size_t)res->content_length;
     start_body = strstr(request, "\r\n\r\n") + 4;
 
     res->message_body = strndup(start_body, res->content_length);

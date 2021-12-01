@@ -76,6 +76,7 @@ void process_content_length(char *response, struct http_response *res)
     res->content_length = length;
     free(inputDup);
 }
+
 // testing purposes
 // int main()
 // {

@@ -9,7 +9,7 @@
 void process_request_line(char *req_line_str, struct request_line *req_line)
 {
     const static int bufSize = 1024;
-    char buf[bufSize] = {0};
+    char buf[1024] = {0};
 
     // can probably turn this into a function, will get back to it later
     char *end_method = strchr(req_line_str, ' ');

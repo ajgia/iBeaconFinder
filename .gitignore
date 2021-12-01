@@ -9,7 +9,7 @@
 *.pag
 
 .DS_Store
-beacons.db
+*.db
 
 /cmake-build-debug
 /build

@@ -196,7 +196,7 @@ int main (int argc, char *argv[])
 
     reporter = error_reporter;
     tracer = trace_reporter;
-    // tracer = NULL;
+    tracer = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
     dc_memset(&env, &sa, 0, sizeof(sa));
@@ -501,7 +501,7 @@ int startProcessingFSM (const struct dc_posix_env *env, struct dc_error *err, in
 
         struct server *server = (struct server *)dc_malloc(env, err, sizeof(struct server));
         server->req.req_line = (struct request_line *)dc_malloc(env, err, sizeof(struct request_line));
-        server->res.res_line = (struct response_line *)dc_malloc(env, err, sizeof(struct response_line));
+        server->res.stat_line = (struct status_line *)dc_malloc(env, err, sizeof(struct status_line));
         server->client_socket_fd = client_socket_fd;
         server->dbLoc = dbLoc;
 
@@ -523,7 +523,7 @@ void freeServerStruct(struct server *server) {
     free(server->req.req_line);
     free(server->req.message_body);
 
-    free(server->res.res_line);
+    free(server->res.stat_line);
 
     free(server);
 }

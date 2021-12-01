@@ -28,6 +28,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "common.h"
+#include "http_.h"
+#define MAX_SIZE 8192
 // #include "common.h"
 // #include "dbstuff.h"
 // #include "http_.h"
@@ -49,12 +52,13 @@ struct client
     int highlight;
     // TODO: these structs should be valid
     // struct http_request req;
-    // struct http_response res;
+    struct http_response res;
     // these may need to be defined size arrays for mallocing.
     char *request;
     char *response;
 };
-
+int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
+                 char *dest, size_t bufSize, void *arg);
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env,
                            const char *file_name, const char *function_name,
@@ -91,7 +95,7 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
                       void *arg);
 enum application_states
 {
-    SETUP_WINDOW = DC_FSM_USER_START, // 2
+    SETUP_WINDOW = DC_FSM_USER_START,  // 2
     SETUP,
     AWAIT_INPUT,
     GET_ALL,
@@ -124,7 +128,7 @@ int main(void)
         {BUILD_REQUEST, AWAIT_RESPONSE, _await_response},
         {AWAIT_RESPONSE, PARSE_RESPONSE, _parse_response},
         {PARSE_RESPONSE, DISPLAY_RESPONSE, _display_response},
-        {DISPLAY_RESPONSE, AWAIT_INPUT, _await_input}};
+        {DISPLAY_RESPONSE, SETUP, _setup}};
 
     reporter = error_reporter;
     tracer = trace_reporter;
@@ -146,7 +150,8 @@ int main(void)
 
         struct client *client =
             (struct client *)dc_malloc(&env, &err, sizeof(struct client));
-
+        client->res.stat_line = (struct status_line *)dc_malloc(
+            &env, &err, sizeof(struct status_line));
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              client, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
@@ -156,6 +161,7 @@ int main(void)
 
     return ret_val;
 }
+
 int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
                   void *arg)
 {
@@ -210,6 +216,7 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
         return next_state;
     }
 }
+
 int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     // set up socket
@@ -218,7 +225,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     client->host_name = "localhost";
     dc_memset(env, &(client->hints), 0, sizeof(client->hints));
-    client->hints.ai_family = PF_INET; // PF_INET6;
+    client->hints.ai_family = PF_INET;  // PF_INET6;
     client->hints.ai_socktype = SOCK_STREAM;
     client->hints.ai_flags = AI_CANONNAME;
     dc_getaddrinfo(env, err, client->host_name, NULL, &(client->hints),
@@ -244,7 +251,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
             // sudo lsof -i:7123
             // kill a process:
             // kill -9 PID
-            port = 7123;
+            port = 80;
             converted_port = htons(port);
 
             // think this is ipv4 or ipv6 stuff
@@ -279,7 +286,6 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
                 // bind address (port) to socket
                 dc_connect(env, err, client->client_socket_fd, sockaddr,
                            sockaddr_size);
-
                 // go to next state
                 next_state = AWAIT_INPUT;
                 return next_state;
@@ -287,6 +293,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
         }
     }
 }
+
 int _await_input(const struct dc_posix_env *env, struct dc_error *err,
                  void *arg)
 {
@@ -313,243 +320,165 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
         choice = wgetch(client->menu_window);
         switch (choice)
         {
-        case KEY_UP:
-            client->highlight--;
-            if (client->highlight == -1)
-            {
-                client->highlight = 0;
-            }
-            break;
-        case KEY_DOWN:
-            client->highlight++;
-            if (client->highlight == 2)
-            {
-                client->highlight = 1;
-            }
-            break;
-            // enter
-        case 10:
-            wclear(client->display_window);
+            case KEY_UP:
+                client->highlight--;
+                if (client->highlight == -1)
+                {
+                    client->highlight = 0;
+                }
+                break;
+            case KEY_DOWN:
+                client->highlight++;
+                if (client->highlight == 2)
+                {
+                    client->highlight = 1;
+                }
+                break;
+                // enter
+            case 10:
+                wclear(client->display_window);
 
-            if (choices[client->highlight] == "GET_ALL")
-            {
-                next_state = GET_ALL;
-            }
-            if (choices[client->highlight] == "GET_BY_KEY")
-            {
-                next_state = BY_KEY;
-            }
-            wrefresh(client->display_window);
-            return next_state;
-            break;
-        default:
-            break;
+                if (choices[client->highlight] == "GET_ALL")
+                {
+                    next_state = GET_ALL;
+                }
+                if (choices[client->highlight] == "GET_BY_KEY")
+                {
+                    next_state = BY_KEY;
+                }
+                wrefresh(client->display_window);
+                return next_state;
+                break;
+            default:
+                break;
         }
     }
     return next_state;
 }
-//  SETUP_WINDOW = DC_FSM_USER_START,  // 2
-// SETUP,
-// AWAIT_INPUT,
-// GET_ALL,
-// BY_KEY,
-// BUILD_REQUEST,
-// AWAIT_RESPONSE,
-// PARSE_RESPONSE,
-// DISPLAY_RESPONSE
+
 int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
     char data[1024];
-    sprintf(data, " GET /ibeacons/data?all HTTP/1.0");
+    sprintf(data, "GET /ibeacons/data?all HTTP/1.0\r\n\r\n");
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
     return next_state;
 }
+
 int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
     char input[1024];
     char data[1024];
+
     mvwprintw(client->menu_window, 2, 0, "ENTER KEY: ");
     curs_set(1);
-
     wrefresh(client->menu_window);
     echo();
+
     wgetstr(client->menu_window, input);
     curs_set(0);
     noecho();
 
-    sprintf(data, " GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
+    sprintf(data, "GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
-
     return next_state;
 }
+
 int _build_request(const struct dc_posix_env *env, struct dc_error *err,
                    void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
     next_state = AWAIT_RESPONSE;
     return next_state;
 }
+
 int _await_response(const struct dc_posix_env *env, struct dc_error *err,
                     void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
+    char *buffer;
 
+    buffer = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
+    client->response = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
+    wclear(client->display_window);
+    mvwprintw(client->display_window, 1, 1, "Waiting for data...");
+    receive_data(env, err, client->client_socket_fd, buffer, MAX_SIZE, client);
+    memmove(client->response, buffer, dc_strlen(env, buffer));
+    free(buffer);
+    wrefresh(client->display_window);
     next_state = PARSE_RESPONSE;
     return next_state;
 }
+
 int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
                     void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-    int display_window_ymax, display_window_xmax;
-    char response[1024];
-    getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
-    // if (recv)
-    // {
-    //     /* code */
-    // }
-
-    mvwprintw(client->display_window, 1, 1, "K:V", response);
-
+    process_response(client->response, &client->res);
+    wclear(client->display_window);
+    mvwprintw(client->display_window, 1, 1, "%s", client->res.message_body);
     wrefresh(client->display_window);
     next_state = DISPLAY_RESPONSE;
     return next_state;
 }
+
 int _display_response(const struct dc_posix_env *env, struct dc_error *err,
                       void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-
-    next_state = AWAIT_INPUT;
+    next_state = SETUP;
     return next_state;
 }
-// int _listen(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
 
-//     if (dc_error_has_error(err))
-//     {
-//         // some error handling
-//     }
+int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
+                 char *dest, size_t bufSize, void *arg)
+{
+    struct client *client = (struct client *)arg;
+    ssize_t count;
+    ssize_t totalWritten = 0;
+    const char *endOfHeadersDelimiter = "\r\n\r\n";
+    char *endOfHeaders;
+    ssize_t spaceInDest;
+    int totalLength = MAX_REQUEST_SIZE;
 
-//     client->backlog = 5;
-//     // listen tells socket it should be capable of accepting incoming
-//     // connections
-//     dc_listen(env, err, client->client_socket_fd, client->backlog);
+    bool foundEndOfHeaders = false;
 
-//     if (dc_error_has_no_error(err))
-//     {
-//         struct sigaction old_action;
+    while (totalWritten < totalLength &&
+           ((count = dc_read(env, err, fd, dest + totalWritten, bufSize)) != 0))
+    {
+        // check space remaining. if going over, abort.
+        spaceInDest = MAX_REQUEST_SIZE - 1 - totalWritten;
+        if (count > spaceInDest)
+        {
+            return EXIT_FAILURE;
+        }
 
-//         dc_sigaction(env, err, SIGINT, NULL, &old_action);
+        totalWritten += count;
 
-//         if (old_action.sa_handler != SIG_IGN)
-//         {
-//             struct sigaction new_action;
-
-//             exit_flag = 0;
-//             new_action.sa_handler = quit_handler;
-//             sigemptyset(&new_action.sa_mask);
-//             new_action.sa_flags = 0;
-//             dc_sigaction(env, err, SIGINT, &new_action, NULL);
-
-//             next_state = ACCEPT;
-//             return next_state;
-//         }
-//     }
-// }
-
-// int _accept(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     client->client_socket_fd =
-//         dc_accept(env, err, client->client_socket_fd, NULL, NULL);
-//     next_state = PROCESS;
-//     return next_state;
-// }
-
-// int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     if (dc_error_has_error(err))
-//     {
-//         // some error handling
-//     }
-
-//     // read file and print to std out
-//     receive_data(env, err, client->client_socket_fd, 1024);
-//     // construct an http struct instance
-
-//     next_state = HANDLE;
-//     return next_state;
-// }
-
-// // TODO: fix this state. it doesn't operate properly
-// // flow of control doesn't reach this state in expected order
-// int handle(const struct dc_posix_env *env, struct dc_error *err, void *arg)
-// {
-//     struct client *client = (struct client *)arg;
-//     int next_state;
-
-//     char *response =
-//         "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: "
-//         "12\n\nHello World!";
-//     dc_write(env, err, client->client_socket_fd, response, strlen(response));
-//     if (dc_error_has_no_error(err))
-//     {
-//         dc_close(env, err, client->client_socket_fd);
-//     }
-
-//     next_state = LISTEN;
-//     return next_state;
-// }
-
-/**
- * @brief Reads from fd into buffer until no more bytes, and writes to
- * STD_OUT as bytes are read.
- *
- * @param env
- * @param err
- * @param fd
- * @param size
- */
-// void receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
-//                   size_t size)
-// {
-//     // more efficient would be to allocate the buffer in the caller (main)
-//     // so we don't have to keep mallocing and freeing the same data over and
-//     // over again.
-
-//     char *data;
-//     ssize_t count;
-
-//     data = dc_malloc(env, err, size);
-
-//     while (!(exit_flag) && (count = dc_read(env, err, fd, data, size)) > 0 &&
-//            dc_error_has_no_error(err))
-//     {
-//         dc_write(env, err, STDOUT_FILENO, data, (size_t)count);
-//     }
-
-//     dc_free(env, data, size);
-// }
+        if (!foundEndOfHeaders)
+        {
+            endOfHeaders = strstr(dest, endOfHeadersDelimiter);
+            if (endOfHeaders)
+            {
+                foundEndOfHeaders = true;
+                int headerLength =
+                    endOfHeaders - dest + strlen(endOfHeadersDelimiter);
+                process_content_length(dest, &client->res);
+                totalLength = headerLength + client->res.content_length;
+            }
+        }
+    }
+    return EXIT_SUCCESS;
+}
 
 static void quit_handler(int sig_num) { exit_flag = 1; }
 

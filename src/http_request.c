@@ -53,7 +53,8 @@ void process_request(char *request, struct http_request *req)
 //         (struct request_line *)malloc(sizeof(struct request_line));
 //     test->req_line = line;
 
-//     char req[100] = "GET /software/htp/cics/index.html HTTP/1.1\r\nheaders";
+//     char req[100] = "GET /software/htp/cics/index.html
+//     HTTP/1.1\r\nheaders";
 
 //     process_request(req, test);
 

@@ -1,5 +1,6 @@
 #ifndef TEMPLATE_HTTP__H
 #define TEMPLATE_HTTP__H
+#undef OK
 typedef enum response_codes response_codes_t;
 typedef enum request_method request_method_t;
 enum request_method
@@ -91,17 +92,17 @@ struct request_line
     char *HTTP_VER;
 };
 /**
- * @brief HTTP response line
+ * @brief HTTP request representation
  * 
  */
-struct response_line
+struct status_line
 {
     char *HTTP_VER;
     response_codes_t res;
     char *reason_phrase;
 };
 /**
- * @brief HTTP request representation
+ * @brief HTTP response representation
  * 
  */
 struct http_request
@@ -111,18 +112,20 @@ struct http_request
     char *message_body;
 };
 /**
- * @brief HTTP response representation
+ * @brief 
  * 
+ * @param request 
+ * @param req 
  */
 struct http_response
 {
-    struct response_line *res_line;
+    struct status_line *stat_line;
+    int content_length;
     char *headers;
     char *message_body;
 };
-
 /**
- * @brief 
+ * @brief Parses an HTTP request string into a struct
  * 
  * @param request 
  * @param req 
@@ -134,4 +137,8 @@ void process_request_line(char *str_in, struct request_line *req);
 //
 void process_header_line(char *header_line, struct http_request *req);
 
+void process_response(char *response, struct http_response *res);
+void process_status_line(char *response, struct status_line *status_line);
+void process_content_length(char *response, struct http_response *res);
+void process_body(char *request, struct http_response *res);
 #endif  // TEMPLATE_HTTP__H

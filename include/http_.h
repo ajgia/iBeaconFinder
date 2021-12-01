@@ -80,31 +80,53 @@ enum response_codes
     NETWORK_AUTHENTICATION_REQUIRED
 };
 
+/**
+ * @brief HTTP request line
+ * 
+ */
 struct request_line
 {
     char *req_method;
     char *path;
     char *HTTP_VER;
 };
+/**
+ * @brief HTTP response line
+ * 
+ */
 struct response_line
 {
     char *HTTP_VER;
     response_codes_t res;
     char *reason_phrase;
 };
+/**
+ * @brief HTTP request representation
+ * 
+ */
 struct http_request
 {
     struct request_line *req_line;
     char *headers;
     char *message_body;
 };
+/**
+ * @brief HTTP response representation
+ * 
+ */
 struct http_response
 {
     struct response_line *res_line;
     char *headers;
     char *message_body;
 };
-// request methods
+
+/**
+ * @brief 
+ * 
+ * @param request 
+ * @param req 
+ */
 void process_request(char *request, struct http_request *req);
 // grab the first line
 // split into relevant fields

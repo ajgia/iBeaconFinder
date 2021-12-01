@@ -31,15 +31,12 @@
 #include "common.h"
 #include "http_.h"
 #define MAX_SIZE 8192
-// #include "common.h"
-// #include "dbstuff.h"
-// #include "http_.h"
+
 
 /**
- * @brief client info
+ * @brief Client info
  *
  */
-
 struct client
 {
     const char *host_name;
@@ -57,8 +54,7 @@ struct client
     char *request;
     char *response;
 };
-int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
-                 char *dest, size_t bufSize, void *arg);
+
 static void error_reporter(const struct dc_error *err);
 static void trace_reporter(const struct dc_posix_env *env,
                            const char *file_name, const char *function_name,
@@ -76,23 +72,114 @@ static void bad_change_state(const struct dc_posix_env *env,
                              struct dc_error *err,
                              const struct dc_fsm_info *info, int from_state_id,
                              int to_state_id);
-
 static void quit_handler(int sig_num);
+
+
+/**
+ * @brief Reads an HTTP response from int file descriptor into destination
+ * 
+ * @param env 
+ * @param err 
+ * @param fd 
+ * @param dest 
+ * @param bufSize 
+ * @param arg 
+ * @return int 
+ */
+int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
+                 char *dest, size_t bufSize, void *arg);
+/**
+ * @brief SETUP_WINDOW state of FSM calls this - initializes curses GUI
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
                   void *arg);
+/**
+ * @brief SETUP state of FSM calls this - performs network setup
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief AWAIT_INPUT state of FSM calls this - displays choices to user and awaits input
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _await_input(const struct dc_posix_env *env, struct dc_error *err,
                  void *arg);
+/**
+ * @brief GET_ALL state of FSM calls this - makes database get_all request to server
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief BY_KEY state of FSM calls this - makes database request with key to server
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief BUILD_REQUEST state of FSM calls this - constructs HTTP request
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _build_request(const struct dc_posix_env *env, struct dc_error *err,
                    void *arg);
+/**
+ * @brief AWAIT_RESPONSE state of FSM calls this - reads from server file descriptor
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _await_response(const struct dc_posix_env *env, struct dc_error *err,
                     void *arg);
+/**
+ * @brief PARSE_RESPONSE state of FSM calls this - processes server response string into a struct
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
                     void *arg);
+/**
+ * @brief DISPLAY_RESPONSE state of FSM calls this - dislays response in curses GUI
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
 int _display_response(const struct dc_posix_env *env, struct dc_error *err,
                       void *arg);
+
+/**
+ * @brief FSM application states
+ * 
+ */
 enum application_states
 {
     SETUP_WINDOW = DC_FSM_USER_START,  // 2
@@ -106,6 +193,10 @@ enum application_states
     DISPLAY_RESPONSE
 };
 
+/**
+ * @brief Atomic signal exit flag
+ * 
+ */
 static volatile sig_atomic_t exit_flag;
 
 int main(void)

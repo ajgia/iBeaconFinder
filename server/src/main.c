@@ -31,7 +31,7 @@
 #include <unistd.h>
 
 /**
- * @brief Server info
+ * @brief Server info used in Processing-FSM
  *
  */
 struct server
@@ -42,6 +42,10 @@ struct server
     struct http_response res;
 };
 
+/**
+ * @brief Application settings
+ * 
+ */
 struct application_settings
 {
     struct dc_opt_settings opts;
@@ -55,59 +59,103 @@ struct application_settings
     int server_socket_fd;
 };
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile sig_atomic_t exit_signal = 0;
-
 static struct dc_application_settings *create_settings(const struct dc_posix_env *env, struct dc_error *err);
-
-static int
-destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings **psettings);
-
+static int destroy_settings(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings **psettings);
 static int run(const struct dc_posix_env *env, struct dc_error *err, struct dc_application_settings *settings);
-
 static void signal_handler(int signnum);
-
 static void do_create_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_create_socket(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_set_sockopts(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_bind(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_listen(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static bool do_accept(const struct dc_posix_env *env, struct dc_error *err, int *client_socket_fd, void *arg);
-
 static void do_shutdown(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void do_destroy_settings(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-
 static void error_reporter(const struct dc_error *err);
-
-void echo(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd);
-
 static void trace(const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
-
-static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
-                            size_t file_position, void *arg);
-
-static void read_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count,
-                           size_t file_position, void *arg);
-
-void freeServerStruct(struct server *server);
-int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd, const char *dbLoc);
-int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
-void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val);
-ssize_t getContentLengthFromString(const char* inputStr);
+static void write_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count, size_t file_position, void *arg);
+static void read_displayer(const struct dc_posix_env *env, struct dc_error *err, const uint8_t *data, size_t count, size_t file_position, void *arg);
+static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env, const char *file_name, const char *function_name, size_t line_number);
+static void will_change_state(const struct dc_posix_env *env, struct dc_error *err, const struct dc_fsm_info  *info, int from_state_id, int to_state_id);
+static void did_change_state(const struct dc_posix_env *env, struct dc_error *err, const struct dc_fsm_info *info, int from_state_id, int to_state_id, int next_id);
+static void bad_change_state(const struct dc_posix_env *env, struct dc_error *err, const struct dc_fsm_info *info, int from_state_id, int to_state_id);
 
 /**
- * @brief Reads from fd into char* until no more bytes
+ * @brief Atomic exit signal
+ * 
+ */
+static volatile sig_atomic_t exit_signal = 0;
+/**
+ * @brief Free structures associated with server struct, and server itself
+ * 
+ * @param server 
+ */
+void freeServerStruct(struct server *server);
+/**
+ * @brief Start the Processing FSM once a connection request is accepted
+ * 
+ * @param env 
+ * @param err 
+ * @param client_socket_fd 
+ * @param dbLoc 
+ * @return int 
+ */
+int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err, int client_socket_fd, const char *dbLoc);
+/**
+ * @brief PROCESS state of Processing FSM calls this - reads data from client FD and creates HTTP request struct representation of data
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
+int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief _GET state of Procesing FSM calls this - interprets GET request and responds
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
+int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief _PUT state of Processing FSM calls this - interprets PUT request and responds
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
+int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief INVALID state of Processing FSM calls this - respond to invalid/unsupported requests
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
+int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief Constructs HTTP response containing val in body, and writes to server's client-fd
+ * 
+ * @param env 
+ * @param err 
+ * @param server 
+ * @param val 
+ */
+void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val);
+/**
+ * @brief Parses an HTTP request string for content-length, and returns value if found or 0 if not.
+ * 
+ * @param inputStr 
+ * @return ssize_t 
+ */
+ssize_t getContentLengthFromString(const char* inputStr);
+/**
+ * @brief Reads an HTTP request from int file descriptor into destination
  *
  * @param env
  * @param err
@@ -115,34 +163,12 @@ ssize_t getContentLengthFromString(const char* inputStr);
  * @param size
  * @return 0 if successful
  */
-int receive_data(  const struct dc_posix_env *env, struct dc_error *err, 
-                    int fd,
-                    char* dest,
-                    size_t bufSize);
+int receive_data(  const struct dc_posix_env *env, struct dc_error *err, int fd, char* dest, size_t bufSize);
 
-static void trace_reporter(__attribute__((unused)) const struct dc_posix_env *env,
-                           const char *file_name,
-                           const char *function_name,
-                           size_t line_number);
-
-
-static void will_change_state(const struct dc_posix_env *env,
-                              struct dc_error           *err,
-                              const struct dc_fsm_info  *info,
-                              int                        from_state_id,
-                              int                        to_state_id);
-static void did_change_state(const struct dc_posix_env *env,
-                             struct dc_error           *err,
-                             const struct dc_fsm_info  *info,
-                             int                        from_state_id,
-                             int                        to_state_id,
-                             int                        next_id);
-static void bad_change_state(const struct dc_posix_env *env,
-                             struct dc_error           *err,
-                             const struct dc_fsm_info  *info,
-                             int                        from_state_id,
-                             int                        to_state_id);
-
+/**
+ * @brief States for Processing-FSM
+ * 
+ */
 enum processing_states
 {
     PROCESS = DC_FSM_USER_START,    // 2
@@ -151,6 +177,13 @@ enum processing_states
     INVALID                         // 5
 };
 
+/**
+ * @brief Starts the server
+ * 
+ * @param argc 
+ * @param argv 
+ * @return int 
+ */
 int main (int argc, char *argv[])
 {
     dc_error_reporter reporter;
@@ -163,7 +196,7 @@ int main (int argc, char *argv[])
 
     reporter = error_reporter;
     tracer = trace_reporter;
-    tracer = NULL;
+    // tracer = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
     dc_memset(&env, &sa, 0, sizeof(sa));
@@ -181,7 +214,6 @@ int main (int argc, char *argv[])
     return ret_val;
 }
 
-// TODO: add setting for location of beacon database
 static struct dc_application_settings *create_settings (const struct dc_posix_env *env, struct dc_error *err)
 {
     static const bool default_verbose = false;

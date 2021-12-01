@@ -604,11 +604,11 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
         writeValToClient(env, err, server, val);
         free(path);
     } else if (strcmp(server->req.req_line->path, "/") == 0 || strcmp(server->req.req_line->path, "/index") == 0 || strcmp(server->req.req_line->path, "/index.html") == 0) {
-        char *basicHTTPMessage = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 14\n\nBeacon Server\n\r\n\r\n";
+        char *basicHTTPMessage = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 14\r\n\r\nBeacon Server\n";
         dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
     }
     else {
-        char *reponse404 = "HTTP/1.0 404 Not Found\nContent-Type: text/plain\nContent-Length: 14\n\n404 Not Found\n\r\n\r\n";
+        char *reponse404 = "HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 14\r\n\r\n404 Not Found\n";
         dc_write(env, err, server->client_socket_fd, reponse404, strlen(reponse404));
 
     }
@@ -627,8 +627,8 @@ int get (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err, struct server *server, char *val) {
     if (val) {
         char* response = (char*)calloc(1024, sizeof(char));
-        char *start = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: "; 
-        sprintf(response, "%s%d\n\n%s\n\r\n\r\n", start, (strlen(val)+1), val);
+        char *start = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "; 
+        sprintf(response, "%s%d\r\n\r\n%s\n", start, (strlen(val)+1), val);
         dc_write(env, err, server->client_socket_fd, response, strlen(response));
         free (response);
     }
@@ -641,8 +641,8 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     char *putBody = strdup(server->req.message_body);
     char *key;
     char *val;
-    const char *response = "HTTP/1.0 200 OK\nContent-Type: text/plain\nContent-Length: 13\n\nPUT Complete\n\r\n\r\n";
-    const char *badResponse = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 16\n\n400 Bad Request\n\r\n\r\n";
+    const char *response = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nPUT Complete\n";
+    const char *badResponse = "HTTP/1.0 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 16\r\n\r\n400 Bad Request\n";
 
 
     // attempt at failure handling
@@ -675,7 +675,7 @@ int put (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 int invalid (const struct dc_posix_env *env, struct dc_error *err, void *arg) {
     struct server *server = (struct server *)arg;
     int next_state;
-    const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\nContent-Type: text/plain\nContent-Length: 16\n\n400 Bad Request\n\r\n\r\n";
+    const char *basicHTTPMessage = "HTTP/1.0 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 16\r\n\r\n400 Bad Request\n";
     
     dc_write(env, err, server->client_socket_fd, basicHTTPMessage, strlen(basicHTTPMessage));
 

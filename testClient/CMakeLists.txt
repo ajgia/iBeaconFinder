@@ -3,36 +3,26 @@
 cmake_minimum_required(VERSION 3.19)
 
 # Project name and a few useful settings. Other commands can pick up the results
-project(iBeaconProject
+project(iBeaconServer
         VERSION 0.1
         DESCRIPTION ""
         LANGUAGES C)
 
 set(HEADER_LIST
-        "${iBeaconProject_SOURCE_DIR}/include/common.h"
-        "${iBeaconProject_SOURCE_DIR}/include/dbstuff.h"
-        "${iBeaconProject_SOURCE_DIR}/include/http_.h"
+        "${iBeaconServer_SOURCE_DIR}/include/common.h"
+        "${iBeaconServer_SOURCE_DIR}/include/dbstuff.h"
+        "${iBeaconServer_SOURCE_DIR}/include/http_.h"
         )
 
 set(COMMON_SOURCE_LIST
-        "${iBeaconProject_SOURCE_DIR}/src/common.c"
-        "${iBeaconProject_SOURCE_DIR}/src/db.c"
-        "${iBeaconProject_SOURCE_DIR}/src/http_request.c"
-        "${iBeaconProject_SOURCE_DIR}/src/http_response.c"
+        "${iBeaconServer_SOURCE_DIR}/src/common.c"
+        "${iBeaconServer_SOURCE_DIR}/src/db.c"
+        "${iBeaconServer_SOURCE_DIR}/src/http_request.c"
+        "${iBeaconServer_SOURCE_DIR}/src/http_response.c"
         )
 
-set(SERVER_SOURCE_LIST
-        )
-
-set(CLIENT_SOURCE_LIST
-        )
-
-set(SERVER_MAIN_SOURCE
-        "${iBeaconProject_SOURCE_DIR}/src/iBeaconServer.c"
-        )
-
-set(CLIENT_MAIN_SOURCE
-        "${iBeaconProject_SOURCE_DIR}/src/cursesClient.c"
+set(MAIN_SOURCE
+        "${iBeaconServer_SOURCE_DIR}/src/main.c"
         )
 
 ### Require out-of-source builds
@@ -62,7 +52,7 @@ if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     find_package(Doxygen)
 
     if (Doxygen_FOUND)
-        add_subdirectory(docs)
+        # add_subdirectory(docs)
     else ()
         message(STATUS "Doxygen not found, not building docs")
     endif ()

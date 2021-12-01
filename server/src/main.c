@@ -32,7 +32,7 @@
 #include "http_.h"
 
 /**
- * @brief Server info used in Processing-FSM
+ * @brief Server info
  *
  */
 struct server
@@ -43,10 +43,6 @@ struct server
     struct http_response res;
 };
 
-/**
- * @brief Application settings
- *
- */
 struct application_settings
 {
     struct dc_opt_settings opts;
@@ -122,25 +118,7 @@ void freeServerStruct(struct server *server);
 int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err,
                        int client_socket_fd, const char *dbLoc);
 int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-/**
- * @brief _GET state of Procesing FSM calls this - interprets GET request and
- * responds
- *
- * @param env
- * @param err
- * @param arg
- * @return int
- */
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-/**
- * @brief _PUT state of Processing FSM calls this - interprets PUT request and
- * responds
- *
- * @param env
- * @param err
- * @param arg
- * @return int
- */
 int put(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 int invalid(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
@@ -148,7 +126,7 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
 ssize_t getContentLengthFromString(const char *inputStr);
 
 /**
- * @brief Reads an HTTP request from int file descriptor into destination
+ * @brief Reads from fd into char* until no more bytes
  *
  * @param env
  * @param err
@@ -177,10 +155,6 @@ static void bad_change_state(const struct dc_posix_env *env,
                              const struct dc_fsm_info *info, int from_state_id,
                              int to_state_id);
 
-/**
- * @brief States for Processing-FSM
- *
- */
 enum processing_states
 {
     PROCESS = DC_FSM_USER_START,  // 2
@@ -201,7 +175,7 @@ int main(int argc, char *argv[])
 
     reporter = error_reporter;
     tracer = trace_reporter;
-    // tracer = NULL;
+    tracer = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
     dc_memset(&env, &sa, 0, sizeof(sa));

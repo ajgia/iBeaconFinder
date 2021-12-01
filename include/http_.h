@@ -3,12 +3,20 @@
 #undef OK
 typedef enum response_codes response_codes_t;
 typedef enum request_method request_method_t;
+/**
+ * @brief HTTP request methods
+ * 
+ */
 enum request_method
 {
     GET,
     PUT,
     POST
 };
+/**
+ * @brief HTTP response codes
+ * 
+ */
 enum response_codes
 {
     // Informational Responses
@@ -92,7 +100,7 @@ struct request_line
     char *HTTP_VER;
 };
 /**
- * @brief HTTP request representation
+ * @brief HTTP status line
  *
  */
 struct status_line
@@ -101,9 +109,10 @@ struct status_line
     response_codes_t res;
     char *reason_phrase;
 };
+
 /**
- * @brief HTTP response representation
- *
+ * @brief HTTP request
+ * 
  */
 struct http_request
 {
@@ -111,11 +120,10 @@ struct http_request
     char *headers;
     char *message_body;
 };
+
 /**
- * @brief
- *
- * @param request
- * @param req
+ * @brief HTTP response
+ * 
  */
 struct http_response
 {

@@ -714,6 +714,9 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     {
         dc_close(env, err, server->client_socket_fd);
     }
+    else {
+        display("error");
+    }
 
     free(val);
     next_state = DC_FSM_EXIT;

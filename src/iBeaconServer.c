@@ -731,7 +731,7 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
         char *response = (char *)calloc(1024, sizeof(char));
         char *start =
             "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
-        sprintf(response, "%s%d\r\n\r\n%s", start, (strlen(val) + 1), val);
+        sprintf(response, "%s%d\r\n\r\n%s", start, strlen(val), val);
         dc_write(env, err, server->client_socket_fd, response,
                  strlen(response));
         free(response);

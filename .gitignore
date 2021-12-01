@@ -11,3 +11,6 @@
 testClient/tester
 .DS_Store
 beacons.db
+
+/cmake-build-debug
+/build

@@ -366,7 +366,7 @@ int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct client *client = (struct client *)arg;
     int next_state;
     char data[1024];
-    sprintf(data, " GET /ibeacons/data?all HTTP/1.0");
+    sprintf(data, "GET /ibeacons/data?all HTTP/1.0\r\n\r\n");
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
     return next_state;
@@ -387,7 +387,7 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     curs_set(0);
     noecho();
 
-    sprintf(data, " GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
+    sprintf(data, "GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = BUILD_REQUEST;
     return next_state;

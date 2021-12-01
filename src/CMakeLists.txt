@@ -25,8 +25,6 @@ target_include_directories(cursesClient PRIVATE /usr/local/include)
 target_link_directories(cursesClient PRIVATE /usr/lib)
 target_link_directories(cursesClient PRIVATE /usr/local/lib)
 
-find_package(Curses REQUIRED)
-target_include_directories(cursesClient PRIVATE ${CURSES_INCLUDE_DIR})
 
 # All users of this library will need at least C11
 target_compile_features(iBeaconServer PUBLIC c_std_11)
@@ -48,6 +46,7 @@ find_library(LIBDC_UTIL dc_util REQUIRED)
 find_library(LIBDC_FSM dc_fsm REQUIRED)
 find_library(LIBDC_APPLICATION dc_application REQUIRED)
 find_library(LIBDC_NETWORK dc_network REQUIRED)
+find_library(CURSES_LIBRARIES ncurses REQUIRED)
 target_link_libraries(iBeaconServer PRIVATE ${LIBM})
 target_link_libraries(iBeaconServer PRIVATE ${LIBDC_ERROR})
 target_link_libraries(iBeaconServer PRIVATE ${LIBDC_POSIX})

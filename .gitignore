@@ -8,7 +8,6 @@
 *.dir
 *.pag
 
-testClient/tester
 .DS_Store
 beacons.db
 

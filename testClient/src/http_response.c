@@ -9,7 +9,19 @@ void process_response(char *response, struct http_response *res)
     char *end_res_line = strchr(response, '\n');
     strncpy(response_line, response, end_res_line - response);
     process_status_line(response_line, res->stat_line);
-    process_content_length(response, res);
+    process_body(response, res);
+}
+void process_body(char *request, struct http_response *res)
+{
+    size_t totallength;
+    size_t body_length;
+    char *start_body;
+
+    totallength = strlen(request);
+    body_length = totallength - (size_t)res->content_length;
+    start_body = strstr(request, "\r\n\r\n") + 4;
+
+    res->message_body = strndup(start_body, body_length);
 }
 void process_status_line(char *response, struct status_line *status_line)
 {

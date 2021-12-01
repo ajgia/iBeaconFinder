@@ -128,7 +128,7 @@ int main(void)
         {BUILD_REQUEST, AWAIT_RESPONSE, _await_response},
         {AWAIT_RESPONSE, PARSE_RESPONSE, _parse_response},
         {PARSE_RESPONSE, DISPLAY_RESPONSE, _display_response},
-        {DISPLAY_RESPONSE, SETUP, _await_input}};
+        {DISPLAY_RESPONSE, SETUP, _setup}};
 
     reporter = error_reporter;
     tracer = trace_reporter;
@@ -408,9 +408,12 @@ int _await_response(const struct dc_posix_env *env, struct dc_error *err,
     char *buffer;
 
     buffer = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
+    client->response = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
     wclear(client->display_window);
     mvwprintw(client->display_window, 1, 1, "Waiting for data...");
     receive_data(env, err, client->client_socket_fd, buffer, MAX_SIZE, client);
+    memmove(client->response, buffer, dc_strlen(env, buffer));
+    free(buffer);
     wrefresh(client->display_window);
     next_state = PARSE_RESPONSE;
     return next_state;
@@ -420,10 +423,9 @@ int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
-    int display_window_ymax, display_window_xmax;
-    char response[1024];
-    getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
-    mvwprintw(client->display_window, 1, 1, "K:V", response);
+    process_response(client->response, &client->res);
+    wclear(client->display_window);
+    mvwprintw(client->display_window, 1, 1, "%s", client->res.message_body);
     wrefresh(client->display_window);
     next_state = DISPLAY_RESPONSE;
     return next_state;
@@ -433,7 +435,7 @@ int _display_response(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct client *client = (struct client *)arg;
     int next_state;
-    next_state = AWAIT_INPUT;
+    next_state = SETUP;
     return next_state;
 }
 int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,

@@ -23,6 +23,7 @@ void process_request_line(char *req_line_str, struct request_line *req_line)
     strncpy(buf, end_path + 1, end_ver - end_path);
     req_line->HTTP_VER = strdup(buf);
 }
+
 void process_request(char *request, struct http_request *req)
 {
     // req line
@@ -43,7 +44,8 @@ void process_request(char *request, struct http_request *req)
 //         (struct request_line *)malloc(sizeof(struct request_line));
 //     test->req_line = line;
 
-//     char req[100] = "GET /software/htp/cics/index.html HTTP/1.1\r\nheaders";
+//     char req[100] = "GET /software/htp/cics/index.html
+//     HTTP/1.1\r\nheaders";
 
 //     process_request(req, test);
 

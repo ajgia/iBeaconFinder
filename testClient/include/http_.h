@@ -117,4 +117,5 @@ void process_header_line(char *header_line, struct http_request *req);
 void process_response(char *response, struct http_response *res);
 void process_status_line(char *response, struct status_line *status_line);
 void process_content_length(char *response, struct http_response *res);
+void process_body(char *request, struct http_response *res);
 #endif  // TEMPLATE_HTTP__H

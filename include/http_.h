@@ -83,7 +83,7 @@ enum response_codes
 
 /**
  * @brief HTTP request line
- * 
+ *
  */
 struct request_line
 {
@@ -93,7 +93,7 @@ struct request_line
 };
 /**
  * @brief HTTP request representation
- * 
+ *
  */
 struct status_line
 {
@@ -103,7 +103,7 @@ struct status_line
 };
 /**
  * @brief HTTP response representation
- * 
+ *
  */
 struct http_request
 {
@@ -112,10 +112,10 @@ struct http_request
     char *message_body;
 };
 /**
- * @brief 
- * 
- * @param request 
- * @param req 
+ * @brief
+ *
+ * @param request
+ * @param req
  */
 struct http_response
 {
@@ -126,14 +126,14 @@ struct http_response
 };
 /**
  * @brief Parses an HTTP request string into a struct
- * 
- * @param request 
- * @param req 
+ *
+ * @param request
+ * @param req
  */
 void process_request(char *request, struct http_request *req);
 // grab the first line
 // split into relevant fields
-void process_request_line(char *str_in, struct request_line *req);
+void process_request_line(char *req_line_str, struct request_line *req_line);
 //
 void process_header_line(char *header_line, struct http_request *req);
 

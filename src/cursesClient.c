@@ -78,21 +78,22 @@ static void bad_change_state(const struct dc_posix_env *env,
                              int to_state_id);
 
 static void quit_handler(int sig_num);
-int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
-                  void *arg);
-int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int _await_input(const struct dc_posix_env *env, struct dc_error *err,
+int setup_window(const struct dc_posix_env *env, struct dc_error *err,
                  void *arg);
-int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg);
-int _build_request(const struct dc_posix_env *env, struct dc_error *err,
+int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int await_input(const struct dc_posix_env *env, struct dc_error *err,
+                void *arg);
+int get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int build_request(const struct dc_posix_env *env, struct dc_error *err,
+                  void *arg);
+int await_response(const struct dc_posix_env *env, struct dc_error *err,
                    void *arg);
-int _await_response(const struct dc_posix_env *env, struct dc_error *err,
-                    void *arg);
-int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
-                    void *arg);
-int _display_response(const struct dc_posix_env *env, struct dc_error *err,
-                      void *arg);
+int parse_response(const struct dc_posix_env *env, struct dc_error *err,
+                   void *arg);
+int display_response(const struct dc_posix_env *env, struct dc_error *err,
+                     void *arg);
+int quit(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 enum application_states
 {
     SETUP_WINDOW = DC_FSM_USER_START,  // 2
@@ -100,10 +101,10 @@ enum application_states
     AWAIT_INPUT,
     GET_ALL,
     BY_KEY,
-    BUILD_REQUEST,
     AWAIT_RESPONSE,
     PARSE_RESPONSE,
-    DISPLAY_RESPONSE
+    DISPLAY_RESPONSE,
+    QUIT
 };
 
 static volatile sig_atomic_t exit_flag;
@@ -118,17 +119,17 @@ int main(void)
 
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
-        {DC_FSM_INIT, SETUP_WINDOW, _setup_window},
-        {SETUP_WINDOW, SETUP, _setup},
-        {SETUP, AWAIT_INPUT, _await_input},
-        {AWAIT_INPUT, GET_ALL, _get_all},
-        {AWAIT_INPUT, BY_KEY, _by_key},
-        {GET_ALL, BUILD_REQUEST, _build_request},
-        {BY_KEY, BUILD_REQUEST, _build_request},
-        {BUILD_REQUEST, AWAIT_RESPONSE, _await_response},
-        {AWAIT_RESPONSE, PARSE_RESPONSE, _parse_response},
-        {PARSE_RESPONSE, DISPLAY_RESPONSE, _display_response},
-        {DISPLAY_RESPONSE, SETUP, _setup}};
+        {DC_FSM_INIT, SETUP_WINDOW, setup_window},
+        {SETUP_WINDOW, SETUP, setup},
+        {SETUP, AWAIT_INPUT, await_input},
+        {AWAIT_INPUT, GET_ALL, get_all},
+        {AWAIT_INPUT, BY_KEY, by_key},
+        {GET_ALL, AWAIT_RESPONSE, await_response},
+        {BY_KEY, AWAIT_RESPONSE, await_response},
+        {AWAIT_RESPONSE, PARSE_RESPONSE, parse_response},
+        {PARSE_RESPONSE, DISPLAY_RESPONSE, display_response},
+        {AWAIT_INPUT, QUIT, quit},
+        {DISPLAY_RESPONSE, SETUP, setup}};
 
     reporter = error_reporter;
     tracer = trace_reporter;
@@ -155,15 +156,22 @@ int main(void)
         ret_val = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state,
                              client, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
+
+        dc_shutdown(&env, &err, client->client_socket_fd, SHUT_RDWR);
+        dc_close(&env, &err, client->client_socket_fd);
         free(client->response);
+        free(client->res.message_body);
+        free(client->res.stat_line->reason_phrase);
+        free(client->res.stat_line->HTTP_VER);
+
         free(client);
     }
 
     return ret_val;
 }
 
-int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
-                  void *arg)
+int setup_window(const struct dc_posix_env *env, struct dc_error *err,
+                 void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
@@ -217,7 +225,7 @@ int _setup_window(const struct dc_posix_env *env, struct dc_error *err,
     }
 }
 
-int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     // set up socket
     struct client *client = (struct client *)arg;
@@ -294,12 +302,11 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     }
 }
 
-int _await_input(const struct dc_posix_env *env, struct dc_error *err,
-                 void *arg)
+int await_input(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
-    char *choices[2] = {"GET_ALL", "GET_BY_KEY"};
+    char *choices[3] = {"GET_ALL", "GET_BY_KEY", "QUIT"};
     int choice;
 
     int display_window_ymax, display_window_xmax;
@@ -308,7 +315,7 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
     while (1)
     {
         wclear(client->menu_window);
-        for (size_t i = 0; i < 2; i++)
+        for (size_t i = 0; i < 3; i++)
         {
             if (i == client->highlight)
             {
@@ -329,9 +336,9 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
                 break;
             case KEY_DOWN:
                 client->highlight++;
-                if (client->highlight == 2)
+                if (client->highlight == 3)
                 {
-                    client->highlight = 1;
+                    client->highlight = 2;
                 }
                 break;
                 // enter
@@ -346,6 +353,10 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
                 {
                     next_state = BY_KEY;
                 }
+                if (choices[client->highlight] == "QUIT")
+                {
+                    next_state = DC_FSM_EXIT;
+                }
                 wrefresh(client->display_window);
                 return next_state;
                 break;
@@ -356,18 +367,18 @@ int _await_input(const struct dc_posix_env *env, struct dc_error *err,
     return next_state;
 }
 
-int _get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+int get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
     char data[1024];
     sprintf(data, "GET /ibeacons/data?all HTTP/1.0\r\n\r\n");
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
-    next_state = BUILD_REQUEST;
+    next_state = AWAIT_RESPONSE;
     return next_state;
 }
 
-int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
+int by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
@@ -385,21 +396,12 @@ int _by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     sprintf(data, "GET /ibeacons/data?%s HTTP/1.0\r\n\r\n", input);
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
-    next_state = BUILD_REQUEST;
-    return next_state;
-}
-
-int _build_request(const struct dc_posix_env *env, struct dc_error *err,
-                   void *arg)
-{
-    struct client *client = (struct client *)arg;
-    int next_state;
     next_state = AWAIT_RESPONSE;
     return next_state;
 }
 
-int _await_response(const struct dc_posix_env *env, struct dc_error *err,
-                    void *arg)
+int await_response(const struct dc_posix_env *env, struct dc_error *err,
+                   void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
@@ -417,8 +419,8 @@ int _await_response(const struct dc_posix_env *env, struct dc_error *err,
     return next_state;
 }
 
-int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
-                    void *arg)
+int parse_response(const struct dc_posix_env *env, struct dc_error *err,
+                   void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
@@ -430,15 +432,15 @@ int _parse_response(const struct dc_posix_env *env, struct dc_error *err,
     return next_state;
 }
 
-int _display_response(const struct dc_posix_env *env, struct dc_error *err,
-                      void *arg)
+int display_response(const struct dc_posix_env *env, struct dc_error *err,
+                     void *arg)
 {
     struct client *client = (struct client *)arg;
     int next_state;
     next_state = SETUP;
     return next_state;
 }
-
+int quit(const struct dc_posix_env *env, struct dc_error *err, void *arg) {}
 int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
                  char *dest, size_t bufSize, void *arg)
 {

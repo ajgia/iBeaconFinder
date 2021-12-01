@@ -1,16 +1,16 @@
-#editor stuff
+# Editor files
 .vscode
-
-#stuff
+#Object files
 *.o
-
-#database stuff
+# Databases
 *.dir
 *.pag
-
-.DS_Store
 *.db
-
+# DS_Store
+.DS_Store
+# Build locations
 /cmake-build-debug
 /build
-
+# Doxygen Output
+/html
+/latex

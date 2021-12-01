@@ -131,14 +131,46 @@ struct http_response
  * @param req
  */
 void process_request(char *request, struct http_request *req);
-// grab the first line
-// split into relevant fields
-void process_request_line(char *req_line_str, struct request_line *req_line);
-//
+/**
+ * @brief Parses request line out of http request string
+ *
+ * @param str_in
+ * @param req
+ */
+void process_request_line(char *str_in, struct request_line *req);
+/**
+ * @brief Parses headers out of http request string
+ *
+ * @param header_line
+ * @param req
+ */
 void process_header_line(char *header_line, struct http_request *req);
-
+/**
+ * @brief Parses an HTTP response string into a struct
+ *
+ * @param response
+ * @param res
+ */
 void process_response(char *response, struct http_response *res);
+/**
+ * @brief Parses status line out of HTTP response string
+ *
+ * @param response
+ * @param status_line
+ */
 void process_status_line(char *response, struct status_line *status_line);
+/**
+ * @brief Parses content length out of an HTTP response string
+ *
+ * @param response
+ * @param res
+ */
 void process_content_length(char *response, struct http_response *res);
+/**
+ * @brief Parses body out of an HTTP request string
+ *
+ * @param request
+ * @param res
+ */
 void process_body(char *request, struct http_response *res);
 #endif  // TEMPLATE_HTTP__H

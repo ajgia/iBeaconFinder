@@ -60,6 +60,7 @@ void process_content_length(char *response, struct http_response *res)
         lengthStr = strtok(seekToPos + strlen(seekTo), " ");
         length = atoi(lengthStr);
     }
+    // res->content_length = (int)malloc(sizeof(int));
     res->content_length = length;
     free(inputDup);
 }

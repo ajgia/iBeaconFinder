@@ -249,7 +249,7 @@ int _setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
             // sudo lsof -i:7123
             // kill a process:
             // kill -9 PID
-            port = 7123;
+            port = 80;
             converted_port = htons(port);
 
             // think this is ipv4 or ipv6 stuff
@@ -406,14 +406,12 @@ int _await_response(const struct dc_posix_env *env, struct dc_error *err,
     struct client *client = (struct client *)arg;
     int next_state;
     char *buffer;
-    char *response = client->response;
 
-    response = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
-    buffer = (char *)dc_malloc(env, err, 1024);
-
+    buffer = (char *)dc_calloc(env, err, MAX_SIZE, sizeof(char));
     wclear(client->display_window);
-    mvwprintw(client->display_window, 1, 1, "Waiting for data...", response);
-
+    mvwprintw(client->display_window, 1, 1, "Waiting for data...");
+    receive_data(env, err, client->client_socket_fd, buffer, MAX_SIZE, client);
+    wrefresh(client->display_window);
     next_state = PARSE_RESPONSE;
     return next_state;
 }
@@ -471,7 +469,7 @@ int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
                 foundEndOfHeaders = true;
                 int headerLength =
                     endOfHeaders - dest + strlen(endOfHeadersDelimiter);
-                process_content_length(dest, client->response);
+                process_content_length(dest, &client->res);
                 totalLength = headerLength + client->res.content_length;
             }
         }

@@ -155,7 +155,7 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg);
  */
 int get(const struct dc_posix_env *env, struct dc_error *err, void *arg);
 /**
- * @brief _PUT state of Processing FSM calls this - interprets PUT request and
+ * @brief PUT state of Processing FSM calls this - interprets PUT request and
  * responds
  *
  * @param env
@@ -217,8 +217,8 @@ void deliverThe404(struct server *server);
 enum processing_states
 {
     PROCESS = DC_FSM_USER_START,  // 2
-    _GET,                         // 3
-    _PUT,                         // 4
+    GET_,                         // 3
+    PUT_,                         // 4
     INVALID                       // 5
 };
 
@@ -513,13 +513,13 @@ static bool do_accept(const struct dc_posix_env *env, struct dc_error *err,
 {
     struct application_settings *app_settings;
     bool ret_val;
-
+    const char * dbLoc;
     DC_TRACE(env);
     app_settings = arg;
     ret_val = false;
     *client_socket_fd =
         dc_network_accept(env, err, app_settings->server_socket_fd);
-    const char *dbLoc = dc_setting_string_get(env, app_settings->dbLoc);
+    dbLoc = dc_setting_string_get(env, app_settings->dbLoc);
 
     if (dc_error_has_error(err))
     {
@@ -561,11 +561,11 @@ int startProcessingFSM(const struct dc_posix_env *env, struct dc_error *err,
     struct dc_fsm_info *fsm_info;
     static struct dc_fsm_transition transitions[] = {
         {DC_FSM_INIT, PROCESS, process},
-        {PROCESS, _GET, get},
-        {PROCESS, _PUT, put},
+        {PROCESS, GET_, get},
+        {PROCESS, PUT_, put},
         {PROCESS, INVALID, invalid},
-        {_GET, DC_FSM_EXIT, NULL},
-        {_PUT, DC_FSM_EXIT, NULL},
+        {GET_, DC_FSM_EXIT, NULL},
+        {PUT_, DC_FSM_EXIT, NULL},
         {INVALID, DC_FSM_EXIT, NULL},
     };
 
@@ -633,9 +633,8 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     buffer = (char *)dc_malloc(env, err, 1024);
 
     // read from client_socket_fd up to max size in request
-    int successRead;
-    if ((successRead = receive_data(env, err, server->client_socket_fd, request,
-                                    MAX_REQUEST_SIZE)) != 0)
+    if (receive_data(env, err, server->client_socket_fd, request,
+                                    MAX_REQUEST_SIZE) != 0)
     {
         next_state = INVALID;
         return next_state;
@@ -653,9 +652,9 @@ int process(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     // server->req.req_line->path, server->req.req_line->HTTP_VER);
     // printf("BODY\n%s\n", server->req.message_body);
     if (strcmp(server->req.req_line->req_method, "GET") == 0)
-        next_state = _GET;
+        next_state = GET_;
     else if (strcmp(server->req.req_line->req_method, "PUT") == 0)
-        next_state = _PUT;
+        next_state = PUT_;
     else
         next_state = INVALID;
 
@@ -781,6 +780,7 @@ int put(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     {
         dc_write(env, err, server->client_socket_fd, badResponse,
                  strlen(badResponse));
+                 free(putBody);
         return DC_FSM_EXIT;
     }
 

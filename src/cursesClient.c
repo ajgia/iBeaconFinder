@@ -405,7 +405,7 @@ int await_input(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     int            display_window_ymax, display_window_xmax;
     getmaxyx(client->display_window, display_window_ymax, display_window_xmax);
-
+    next_state = QUIT;
     while(1)
     {
         wclear(client->menu_window);

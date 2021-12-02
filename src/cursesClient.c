@@ -236,7 +236,7 @@ int                          main(void)
 
 
     reporter                                      = error_reporter;
-    tracer                                        = trace_reporter;
+    // tracer                                        = trace_reporter;
     tracer                                        = NULL;
     dc_error_init(&err, reporter);
     dc_posix_env_init(&env, tracer);
@@ -273,13 +273,15 @@ int setup_window(const struct dc_posix_env *env, struct dc_error *err, void *arg
 {
     struct client *client = (struct client *)arg;
     int            next_state;
-
+    int yMax;
+    int xMax;
     client->highlight = 0;
+
     initscr();
     noecho();
     cbreak();
     curs_set(0);
-    int yMax, xMax;
+
     getmaxyx(stdscr, yMax, xMax);
 
     start_color();
@@ -398,7 +400,7 @@ int await_input(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 {
     struct client *client = (struct client *)arg;
     int            next_state;
-    char          *choices[3] = {"GET_ALL", "GET_BY_KEY", "QUIT"};
+    const char          *choices[3] = {"GET_ALL", "GET_BY_KEY", "QUIT"};
     int            choice;
 
     int            display_window_ymax, display_window_xmax;
@@ -407,7 +409,7 @@ int await_input(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     while(1)
     {
         wclear(client->menu_window);
-        for(size_t i = 0; i < 3; i++)
+        for(int i = 0; i < 3; i++)
         {
             if(i == client->highlight)
             {
@@ -477,7 +479,7 @@ int by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct client *client = (struct client *)arg;
     int            next_state;
     char           input[1024];
-    char           data[1024];
+    char           data[MAX_REQUEST_SIZE];
 
     setup(env, err, client);
 
@@ -538,6 +540,7 @@ int display_response(const struct dc_posix_env *env, struct dc_error *err, void 
         mvwprintw(client->display_window, 0, 0, "%s", client->res.message_body);
 
     }
+
     wrefresh(client->display_window);
     next_state = CLOSE;
     return next_state;
@@ -553,7 +556,7 @@ int close_(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
 }
 
 int quit_(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-    struct client *client = (struct client *)arg;
+    
     int            next_state;
 
     next_state = DC_FSM_EXIT;
@@ -569,7 +572,7 @@ int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd, c
     char          *endOfHeaders;
     ssize_t        spaceInDest;
     int            totalLength       = MAX_REQUEST_SIZE;
-
+    int            headerLength;
     bool           foundEndOfHeaders = false;
 
     while(totalWritten < totalLength && ((count = dc_read(env, err, fd, dest + totalWritten, bufSize)) != 0))
@@ -589,7 +592,7 @@ int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd, c
             if(endOfHeaders)
             {
                 foundEndOfHeaders = true;
-                int headerLength  = endOfHeaders - dest + strlen(endOfHeadersDelimiter);
+                headerLength  = endOfHeaders - dest+ strlen(endOfHeadersDelimiter);
                 process_content_length(dest, &client->res);
                 totalLength = headerLength + client->res.content_length;
             }
@@ -598,9 +601,6 @@ int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd, c
     return EXIT_SUCCESS;
 }
 
-int quit(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
-
-}
 
 static void quit_handler(int sig_num)
 {

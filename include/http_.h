@@ -145,7 +145,7 @@ void process_request(char *request, struct http_request *req);
  * @param str_in
  * @param req
  */
-void process_request_line(char *str_in, struct request_line *req);
+void process_request_line(char *req_line_str, struct request_line *req_line);
 /**
  * @brief Parses headers out of http request string
  *

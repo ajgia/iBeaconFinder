@@ -257,7 +257,7 @@ int                          main(void)
         client->res.stat_line = (struct status_line *)dc_malloc(&env, &err, sizeof(struct status_line));
         ret_val               = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state, client, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
-
+        endwin();
         free(client->response);
         free(client->res.message_body);
         free(client->res.stat_line->reason_phrase);
@@ -300,7 +300,7 @@ int setup_window(const struct dc_posix_env *env, struct dc_error *err, void *arg
     WINDOW *display_window        = newwin(7, xMax / 2, yMax - 20, xMax / 4);
     client->display_window        = display_window;
     WINDOW *display_window_border = newwin(9, (xMax / 2) + 2, yMax - 21, (xMax / 4) - 1);
-
+    
     wattron(display_window_border, COLOR_PAIR(2));
     box(display_window_border, 0, 0);
 
@@ -327,7 +327,7 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct client *client = (struct client *)arg;
     int            next_state;
 
-    client->host_name = "localhost";
+    client->host_name = "192.168.0.6";
     dc_memset(env, &(client->hints), 0, sizeof(client->hints));
     client->hints.ai_family   = AF_INET;    // PF_INET6;
     client->hints.ai_socktype = SOCK_STREAM;
@@ -528,9 +528,16 @@ int display_response(const struct dc_posix_env *env, struct dc_error *err, void 
 {
     struct client *client = (struct client *)arg;
     int            next_state;
-
     wclear(client->display_window);
-    mvwprintw(client->display_window, 1, 1, "%s", client->res.message_body);
+    if(client->res.stat_line->res == 404)
+    {
+        mvwprintw(client->display_window, 0, 0, "not found");    
+    }
+    else
+    {
+        mvwprintw(client->display_window, 0, 0, "%s", client->res.message_body);
+
+    }
     wrefresh(client->display_window);
     next_state = CLOSE;
     return next_state;

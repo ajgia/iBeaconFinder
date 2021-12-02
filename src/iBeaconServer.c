@@ -184,7 +184,7 @@ int invalid(const struct dc_posix_env *env, struct dc_error *err, void *arg);
  * @param val
  */
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
-                      struct server *server, char *val);
+                      struct server *server, char *start, char *val);
 /**
  * @brief Parses an HTTP request string for content-length, and returns value if
  * found or 0 if not.
@@ -675,7 +675,9 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
         db_fetch_all(env, err, val, server->dbLoc);
         printf("%s\n", val);
 
-        writeValToClient(env, err, server, val);
+        char *start =
+            "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+        writeValToClient(env, err, server, start, val);
         
     }
     else if (strstr(server->req.req_line->path, "?"))
@@ -698,7 +700,9 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
             deliverThe404(server);
         }
         else {
-            writeValToClient(env, err, server, val);
+            char *start =
+            "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+            writeValToClient(env, err, server, start, val);
         }
         
         free(path);
@@ -707,11 +711,10 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
              strcmp(server->req.req_line->path, "/index") == 0 ||
              strcmp(server->req.req_line->path, "/index.html") == 0)
     {
-        char *basicHTTPMessage =
-            "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
-            "14\r\n\r\nBeacon Server\n";
-        dc_write(env, err, server->client_socket_fd, basicHTTPMessage,
-                 strlen(basicHTTPMessage));
+        char *start =
+            "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+        char *val = "Welcome to the Beacon Server ";
+        writeValToClient(env, err, server, start, val);
     }
     else
     {
@@ -745,13 +748,11 @@ void deliverThe404(struct server *server) {
 }
 
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
-                      struct server *server, char *val)
+                      struct server *server, char *start, char *val)
 {
     if (val)
     {
-        char *response = (char *)calloc(1024, sizeof(char));
-        char *start =
-            "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+        char *response = (char *)calloc(MAX_REQUEST_SIZE, sizeof(char));
         sprintf(response, "%s%d\r\n\r\n%s", start, strlen(val), val);
         dc_write(env, err, STDOUT_FILENO, response,
             strlen(response));

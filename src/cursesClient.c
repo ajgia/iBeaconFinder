@@ -29,6 +29,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+// freebsd libraries
+// #include <netinet/in.h>
+
+
+
 #define MAX_SIZE 8192
 
 /**
@@ -327,7 +333,7 @@ int setup(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
     client->host_name = "localhost";
     dc_memset(env, &(client->hints), 0, sizeof(client->hints));
-    client->hints.ai_family   = PF_INET;    // PF_INET6;
+    client->hints.ai_family   = AF_INET;    // PF_INET6;
     client->hints.ai_socktype = SOCK_STREAM;
     client->hints.ai_flags    = AI_CANONNAME;
     dc_getaddrinfo(env, err, client->host_name, NULL, &(client->hints), &(client->result));

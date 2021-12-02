@@ -411,13 +411,13 @@ static void do_create_settings(const struct dc_posix_env *env,
 
     if (dc_strcmp(env, ip_version, "IPv4") == 0)
     {
-        family = PF_INET;
+        family = AF_INET;
     }
     else
     {
         if (dc_strcmp(env, ip_version, "IPv6") == 0)
         {
-            family = PF_INET6;
+            family = AF_INET6;
         }
         else
         {

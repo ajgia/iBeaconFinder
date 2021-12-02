@@ -174,6 +174,17 @@ int parse_response(const struct dc_posix_env *env, struct dc_error *err, void *a
  * @return int
  */
 int display_response(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+/**
+ * @brief Close connection
+ * 
+ * @param env 
+ * @param err 
+ * @param arg 
+ * @return int 
+ */
+int close_(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+int quit_(const struct dc_posix_env *env, struct dc_error *err, void *arg);
+
 
 /**
  * @brief FSM application states
@@ -189,6 +200,7 @@ enum application_states
     AWAIT_RESPONSE,
     PARSE_RESPONSE,
     DISPLAY_RESPONSE,
+    CLOSE, // 10
     QUIT
 };
 
@@ -208,15 +220,18 @@ int                          main(void)
 
     struct dc_fsm_info             *fsm_info;
     static struct dc_fsm_transition transitions[] = {{DC_FSM_INIT, SETUP_WINDOW, setup_window},
-                                                     {SETUP_WINDOW, SETUP, setup},
-                                                     {SETUP, AWAIT_INPUT, await_input},
+                                                     {SETUP_WINDOW, AWAIT_INPUT, await_input},
                                                      {AWAIT_INPUT, GET_ALL, get_all},
                                                      {AWAIT_INPUT, BY_KEY, by_key},
                                                      {GET_ALL, AWAIT_RESPONSE, await_response},
                                                      {BY_KEY, AWAIT_RESPONSE, await_response},
                                                      {AWAIT_RESPONSE, PARSE_RESPONSE, parse_response},
                                                      {PARSE_RESPONSE, DISPLAY_RESPONSE, display_response},
-                                                     {DISPLAY_RESPONSE, SETUP, setup}};
+                                                     {DISPLAY_RESPONSE, CLOSE, close_},
+                                                     {CLOSE, AWAIT_INPUT, await_input},
+                                                     {AWAIT_INPUT, QUIT, quit_},
+                                                     };
+
 
     reporter                                      = error_reporter;
     tracer                                        = trace_reporter;
@@ -226,7 +241,7 @@ int                          main(void)
     ret_val  = EXIT_SUCCESS;
 
     // FSM setup
-    fsm_info = dc_fsm_info_create(&env, &err, "iBeaconclient");
+    fsm_info = dc_fsm_info_create(&env, &err, "iBeaconClient");
     // dc_fsm_info_set_will_change_state(fsm_info, will_change_state);
     // dc_fsm_info_set_did_change_state(fsm_info, did_change_state);
     // dc_fsm_info_set_bad_change_state(fsm_info, bad_change_state);
@@ -241,8 +256,6 @@ int                          main(void)
         ret_val               = dc_fsm_run(&env, &err, fsm_info, &from_state, &to_state, client, transitions);
         dc_fsm_info_destroy(&env, &fsm_info);
 
-        dc_shutdown(&env, &err, client->client_socket_fd, SHUT_RDWR);
-        dc_close(&env, &err, client->client_socket_fd);
         free(client->response);
         free(client->res.message_body);
         free(client->res.stat_line->reason_phrase);
@@ -301,7 +314,7 @@ int setup_window(const struct dc_posix_env *env, struct dc_error *err, void *arg
     if(dc_error_has_no_error(err))
     {
         // go to next state
-        next_state = SETUP;
+        next_state = AWAIT_INPUT;
         return next_state;
     }
 }
@@ -432,7 +445,7 @@ int await_input(const struct dc_posix_env *env, struct dc_error *err, void *arg)
                 }
                 if(choices[client->highlight] == "QUIT")
                 {
-                    next_state = DC_FSM_EXIT;
+                    next_state = QUIT;
                 }
                 wrefresh(client->display_window);
                 return next_state;
@@ -449,6 +462,8 @@ int get_all(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     struct client *client = (struct client *)arg;
     int            next_state;
     char           data[1024];
+
+    setup(env, err, client);
     sprintf(data, "GET /ibeacons/data?all HTTP/1.0\r\n\r\n");
     dc_write(env, err, client->client_socket_fd, data, dc_strlen(env, data));
     next_state = AWAIT_RESPONSE;
@@ -461,6 +476,8 @@ int by_key(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     int            next_state;
     char           input[1024];
     char           data[1024];
+
+    setup(env, err, client);
 
     mvwprintw(client->menu_window, 2, 0, "ENTER KEY: ");
     curs_set(1);
@@ -500,9 +517,7 @@ int parse_response(const struct dc_posix_env *env, struct dc_error *err, void *a
     struct client *client = (struct client *)arg;
     int            next_state;
     process_response(client->response, &client->res);
-    wclear(client->display_window);
-    mvwprintw(client->display_window, 1, 1, "%s", client->res.message_body);
-    wrefresh(client->display_window);
+
     next_state = DISPLAY_RESPONSE;
     return next_state;
 }
@@ -511,7 +526,28 @@ int display_response(const struct dc_posix_env *env, struct dc_error *err, void 
 {
     struct client *client = (struct client *)arg;
     int            next_state;
-    next_state = SETUP;
+
+    wclear(client->display_window);
+    mvwprintw(client->display_window, 1, 1, "%s", client->res.message_body);
+    wrefresh(client->display_window);
+    next_state = CLOSE;
+    return next_state;
+}
+
+int close_(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    struct client *client = (struct client *)arg;
+    int            next_state;
+
+    dc_close(env, err, client->client_socket_fd);
+    next_state = AWAIT_INPUT;
+    return next_state;
+}
+
+int quit_(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+    struct client *client = (struct client *)arg;
+    int            next_state;
+
+    next_state = DC_FSM_EXIT;
     return next_state;
 }
 
@@ -551,6 +587,10 @@ int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd, c
         }
     }
     return EXIT_SUCCESS;
+}
+
+int quit(const struct dc_posix_env *env, struct dc_error *err, void *arg) {
+
 }
 
 static void quit_handler(int sig_num)

@@ -667,10 +667,11 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     {
         // get all
         // some db_fetch call
-        display("get all");
         db_fetch_all(env, err, val, server->dbLoc);
         printf("%s\n", val);
+
         writeValToClient(env, err, server, val);
+        
     }
     else if (strstr(server->req.req_line->path, "?"))
     {
@@ -688,7 +689,16 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
 
         db_fetch(env, err, key, val, server->dbLoc);
         // printf("val returned from db: %s\n", val);
-        writeValToClient(env, err, server, val);
+        if (strstr(val, "Not found")) {
+            char *reponse404 =
+            "HTTP/1.0 404 Not Found\r\nContent-Type: "
+            "text/plain\r\nContent-Length: 10\r\n\r\nNot Found\n";
+            dc_write(env, err, server->client_socket_fd, reponse404, strlen(reponse404));
+        }
+        else {
+            writeValToClient(env, err, server, val);
+        }
+        
         free(path);
     }
     else if (strcmp(server->req.req_line->path, "/") == 0 ||
@@ -732,6 +742,8 @@ void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,
         char *start =
             "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
         sprintf(response, "%s%d\r\n\r\n%s", start, strlen(val), val);
+        dc_write(env, err, STDOUT_FILENO, response,
+            strlen(response));
         dc_write(env, err, server->client_socket_fd, response,
                  strlen(response));
         free(response);

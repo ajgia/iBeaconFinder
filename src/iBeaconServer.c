@@ -204,6 +204,11 @@ ssize_t getContentLengthFromString(const char *inputStr);
  */
 int receive_data(const struct dc_posix_env *env, struct dc_error *err, int fd,
                  char *dest, size_t bufSize);
+/**
+ * @brief Writes a 404 html page to the client
+ * 
+ */
+void deliverThe404(struct server *server);
 
 /**
  * @brief States for Processing-FSM
@@ -690,10 +695,7 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
         db_fetch(env, err, key, val, server->dbLoc);
         // printf("val returned from db: %s\n", val);
         if (strstr(val, "Not found")) {
-            char *reponse404 =
-            "HTTP/1.0 404 Not Found\r\nContent-Type: "
-            "text/plain\r\nContent-Length: 10\r\n\r\nNot Found\n";
-            dc_write(env, err, server->client_socket_fd, reponse404, strlen(reponse404));
+            deliverThe404(server);
         }
         else {
             writeValToClient(env, err, server, val);
@@ -713,11 +715,7 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     }
     else
     {
-        char *reponse404 =
-            "HTTP/1.0 404 Not Found\r\nContent-Type: "
-            "text/plain\r\nContent-Length: 14\r\n\r\n404 Not Found\n";
-        dc_write(env, err, server->client_socket_fd, reponse404,
-                 strlen(reponse404));
+        deliverThe404(server);
     }
 
     if (dc_error_has_no_error(err))
@@ -731,6 +729,19 @@ int get(const struct dc_posix_env *env, struct dc_error *err, void *arg)
     free(val);
     next_state = DC_FSM_EXIT;
     return next_state;
+}
+
+void deliverThe404(struct server *server) {
+    char *response = (char *)calloc(2048, sizeof(char));
+    char *start = "HTTP/1.0 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: ";
+    char * html404 = "<!DOCTYPE html><html><head><title>Hey, 404 Not Found</title></head><body><p>404 Not Found: Don't do that.</p></body></html>";
+    sprintf(response, "%s%d\r\n\r\n%s", start, strlen(html404), html404);
+    write(STDOUT_FILENO, response,
+        strlen(response));
+    write(server->client_socket_fd, response,
+                strlen(response));
+
+    free(response);
 }
 
 void writeValToClient(const struct dc_posix_env *env, struct dc_error *err,

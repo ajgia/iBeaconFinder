@@ -29,11 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-// freebsd libraries
-// #include <netinet/in.h>
-
-
+#include <netinet/in.h>
 
 #define MAX_SIZE 8192
 
